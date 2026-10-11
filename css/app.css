@@ -252,3 +252,18 @@ textarea.inp{height:auto;min-height:96px;padding:12px 14px;font-size:17px;line-h
 .rtable{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 /* Room for the Android status bar and gesture bar when the page is drawn under them. */
 .ph{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* Build 6: number rows with spin buttons, draggable column rows */
+.rin.num2{flex-direction:column;align-items:stretch;gap:6px;min-height:0}
+.rin .ctl{display:flex;gap:6px}
+.rin .ctl input{flex:1;width:auto;min-width:0}
+.rin .ctl .pm{display:grid;place-items:center}
+.rin input::placeholder{color:var(--ink-3);opacity:.45}
+.colrow .mv{touch-action:none;cursor:grab;width:48px}
+.colrow .main{padding-left:4px}
+.colrow.dragging{position:relative;z-index:2;background:var(--surface-2);box-shadow:var(--shadow)}
+.idref{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap}
+.ttl{font-size:19px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menuitem.bad{color:var(--bad-text);border-color:var(--bad)}
+/* Build 7: the app is as tall as the part of the screen the keyboard leaves free, so the bottom button stays in view. */
+.ph{height:var(--vh,100%);transform:translateY(var(--vtop,0px))}

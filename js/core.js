@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 5;
+  var BUILD = 7;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -259,6 +259,39 @@
     var base = toDate(last);
     return base ? new Date(base.getTime() + t.interval_min * 60000) : null;
   }
+  /** What a person calls the test: the machine name/code, else the template name. The Test ID is only a reference. */
+  function testTitle(t) { return (t && (t.machine_code || t.template_name)) || 'Test'; }
+  /** A deleted test is a locked test whose final remark starts with [DELETED]. It stays in the Sheet and is hidden in the app. */
+  function isDeleted(t) { return !!t && /^\[DELETED\]/.test(t.final_remarks || ''); }
+  var LIMIT = 100000;   // no number in the app may be above 100000 or below -100000
+  function decimalsOf(v) { var x = String(v === undefined || v === null ? '' : v), i = x.indexOf('.'); return i < 0 ? 0 : x.length - i - 1; }
+  /**
+   * The value a number column should be near at time `atISO`, from the last 3 readings and their times.
+   * It finds the change for each minute, then multiplies by the minutes since the last reading.
+   * Example: 30.6 at 14:20, 29.2 at 14:30, 27.8 at 14:40 falls 0.14 a minute.
+   *          At 14:50 (10 min later) that gives 26.4. At 14:47 (7 min) it gives 26.8. At 15:05 (25 min) it gives 24.3.
+   * `dec` is how many digits those readings had after the point. With 1 reading the answer is that reading.
+   * The answer is only shown as a grey hint. It is saved only when the person spins or types.
+   */
+  function predict(b, col, atISO) {
+    var pts = usedReadings(b).map(function (r) { return { t: toDate(r.time), v: num(r.values[col.id]), raw: r.values[col.id] }; })
+      .filter(function (p) { return p.v !== null && p.t; }).slice(-3);
+    if (!pts.length) return { value: '', dec: 0 };
+    var dec = Math.max.apply(null, pts.map(function (p) { return decimalsOf(p.raw); })), last = pts[pts.length - 1], v = last.v;
+    if (pts.length >= 2) {
+      var t0 = pts[0].t.getTime(), xs = pts.map(function (p) { return (p.t.getTime() - t0) / 60000; }), n = xs.length;
+      var mx = xs.reduce(function (a, x) { return a + x; }, 0) / n, my = pts.reduce(function (a, p) { return a + p.v; }, 0) / n, sxx = 0, sxy = 0;
+      pts.forEach(function (p, i) { sxx += (xs[i] - mx) * (xs[i] - mx); sxy += (xs[i] - mx) * (p.v - my); });
+      if (sxx > 0) {
+        // Minutes from the last reading's time to this reading's time, whatever the gap is.
+        var at = (toDate(atISO) || new Date()).getTime(), dx = Math.max(0, (at - last.t.getTime()) / 60000);
+        v = last.v + (sxy / sxx) * dx;
+      }
+    }
+    v = Math.max(-LIMIT, Math.min(LIMIT, v));
+    var out = v.toFixed(dec);
+    return { value: Number(out) === 0 ? (0).toFixed(dec) : out, dec: dec };
+  }
   function iAmRecorder(b) { return b && b.test.status !== 'finished' && b.test.current_recorder === state.current; }
 
   /* ---------- saved changes ("ops"): applied on the phone first, sent to the Sheet later ---------- */
@@ -478,13 +511,52 @@
   window.addEventListener('online', function () { live.online = true; emit('sync'); scheduleSync(500); });
   window.addEventListener('offline', function () { live.online = false; emit('sync'); });
 
+  /* ---------- app updates ---------- */
+  // A new build arrives through the service worker (sw.js). The phone asks for it at every open,
+  // every time the app comes back to the screen, and every 30 minutes. When the new build has
+  // taken over, 'update' is announced and the screen restarts the app at a safe moment.
+  var upd = { reg: null, ready: false, server: null, applying: false };
+  function noop() {}
+  function askForUpdate() { if (upd.reg && navigator.onLine) upd.reg.update().catch(noop); }
+  function initUpdates() {
+    if (!('serviceWorker' in navigator) || (location.protocol !== 'https:' && location.hostname !== 'localhost')) return;
+    var had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!had) { had = true; return; }                  // the very first install is not an update
+      upd.ready = true; emit('update');
+    });
+    navigator.serviceWorker.register('sw.js').then(function (reg) { upd.reg = reg; askForUpdate(); }).catch(noop);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) askForUpdate(); });
+    setInterval(askForUpdate, 30 * 60000);
+  }
+  /** Reads the build number that is on the server right now. Gives null with no internet. */
+  function serverBuild() {
+    return fetch('sw.js?check=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
+      var m = /BUILD\s*=\s*(\d+)/.exec(t);
+      upd.server = m ? Number(m[1]) : null;
+      return upd.server;
+    }, function () { upd.server = null; return null; });
+  }
+  function checkUpdate() {
+    return serverBuild().then(function (b) {
+      if (b && b > BUILD) askForUpdate();
+      return { server: b, mine: BUILD };
+    });
+  }
+  function applyUpdate() {
+    if (upd.applying) return;
+    upd.applying = true;
+    setTimeout(function () { location.reload(); }, 500);   // lets the last save reach the phone's storage
+  }
+
   window.TL = {
+    update: { state: upd, init: initUpdates, check: checkUpdate, apply: applyUpdate },
     BUILD: BUILD, cfg: cfg, get state() { return state; }, live: live,
     on: function (f) { listeners.push(f); }, emit: emit, load: load, save: save, me: me, personName: personName,
     api: api, signIn: signIn, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
     act: act, sync: sync, scheduleSync: scheduleSync, pushNow: pushNow, syncState: syncState, waitingCount: waitingCount, pendingReadingIds: pendingReadingIds,
     newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
-    compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder,
+    compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder, testTitle: testTitle, isDeleted: isDeleted, predict: predict, decimalsOf: decimalsOf, LIMIT: LIMIT,
     addPhoto: addPhoto, photoSrc: photoSrc, testPhotos: testPhotos, photosDb: photosDb,
     u: { pad: pad, localISO: localISO, toDate: toDate, hhmm: hhmm, dmy: dmy, dm: dm, dmhm: dmhm, dmyhm: dmyhm, minsBetween: minsBetween, dur: dur, hm: hm, uid: uid, esc: esc, initials: initials, num: num, icon: icon }
   };

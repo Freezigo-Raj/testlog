@@ -91,11 +91,10 @@
     var t = b.test, due = T.nextDue(b);
     var right = mine ? '<span class="pill" data-tick="pill" data-id="' + esc(t.test_id) + '">' + pillText(due) + '</span>' : '<span class="pill">' + icon('eye', 16) + 'View only</span>';
     return '<button type="button" class="card' + (mine ? '' : ' viewer') + '" data-act="open" data-id="' + esc(t.test_id) + '">' +
-      '<div class="between"><span class="num" style="font-size:19px;font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</span>' + right + '</div>' +
-      '<div style="font-size:18px;font-weight:700;line-height:1.25">' + esc(t.template_name || 'No template') + '</div>' +
-      '<div class="muted" style="font-size:15px">' + esc(t.product) + (t.machine_code ? ' · <span class="num">' + esc(t.machine_code) + '</span>' : '') + '</div>' +
+      '<div class="between"><span class="ttl grow">' + esc(T.testTitle(t)) + '</span>' + right + '</div>' +
+      '<div class="muted" style="font-size:15px">' + esc([t.machine_code ? t.template_name : '', t.product, t.mode].filter(Boolean).join(' · ')) + '</div>' +
       '<span class="badge-rec' + (mine ? ' me' : '') + '">' + icon('person', 18) + '<span>Recorder: <strong>' + esc(T.personName(t.current_recorder)) + '</strong>' + (mine ? ' (you)' : '') + '</span></span>' +
-      '<div class="between muted" style="font-size:15px"><span>Started ' + esc(U.dmhm(t.started_at)) + ' · <strong style="color:var(--ink)">' + b.readings.length + '</strong> readings</span>' + icon('chevron', 20) + '</div></button>';
+      '<div class="between muted" style="font-size:15px"><span>Started ' + esc(U.dmhm(t.started_at)) + ' · <strong style="color:var(--ink)">' + b.readings.length + '</strong> readings</span>' + icon('chevron', 20) + '</div><span class="idref">' + esc(t.test_id) + '</span></button>';
   }
   function pillText(due) {
     if (!due) return 'No timer';
@@ -104,7 +103,7 @@
     return 'Next <span class="num" style="font-size:17px">' + U.pad(Math.floor(s / 60)) + ':' + U.pad(s % 60) + '</span>';
   }
   function homeScreen() {
-    var st = S(), all = Object.keys(st.tests).map(function (k) { return st.tests[k]; });
+    var st = S(), all = Object.keys(st.tests).map(function (k) { return st.tests[k]; }).filter(function (b) { return !T.isDeleted(b.test); });
     var running = all.filter(function (b) { return b.test.status !== 'finished'; }).sort(function (a, b) { return (b.test.started_at || '').localeCompare(a.test.started_at || ''); });
     var mine = running.filter(function (b) { return b.test.current_recorder === st.current; }), others = running.filter(function (b) { return b.test.current_recorder !== st.current; });
     var finished = all.filter(function (b) { return b.test.status === 'finished'; }).sort(function (a, b) { return (b.test.ended_at || '').localeCompare(a.test.ended_at || ''); });
@@ -112,7 +111,7 @@
     var h = '<header class="hdr" style="padding-bottom:4px"><div class="between">' + brand() + '<span class="row" style="gap:4px">' + syncBadge() + '<button type="button" class="iconbtn" style="margin-right:-6px" data-act="settings" aria-label="Settings">' + icon('more', 26) + '</button></span></div>' +
       '<div class="between" style="min-height:36px"><span class="muted" style="font-size:15px">Signed in as <strong style="color:var(--ink)">' + esc(T.me().name) + '</strong></span></div></header>';
     h += '<main class="scroll" style="gap:18px"><button type="button" class="btn large" data-act="startNew">' + icon('plus', 28) + 'Start new test</button>';
-    if (st.newTest) h += '<button type="button" class="card" data-act="resumeNew"><div class="between"><span class="num" style="font-size:17px;font-weight:700">' + esc(st.newTest.test_id) + '</span><span class="pill">Not started</span></div></button>';
+    if (st.newTest) h += '<button type="button" class="card" data-act="resumeNew"><div class="between"><span class="ttl">' + esc(st.newTest.machine_code || st.newTest.template_name || 'New test') + '</span><span class="pill">Not started</span></div><span class="idref">' + esc(st.newTest.test_id) + '</span></button>';
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">My tests</h2><span class="num muted" style="font-size:17px;font-weight:700">' + mine.length + '</span></div>';
     h += mine.length ? mine.map(function (b) { return testCard(b, true); }).join('') :
       '<div class="empty">' + icon('timer', 32) + '<b>No tests yet</b></div>';
@@ -121,7 +120,7 @@
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">Finished tests</h2>' + (finished.length > 3 ? '<button type="button" class="quiet" data-act="toggleFinished">' + (ui.allFinished ? 'Show less' : 'See all ' + finished.length) + '</button>' : '') + '</div>';
     h += shown.length ? shown.map(function (b) {
       var t = b.test;
-      return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="num" style="font-size:18px;font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div style="font-size:16px;font-weight:700">' + esc(t.template_name) + '</div><div class="muted" style="font-size:14px">' + esc(t.product) + ' · ' + b.readings.length + ' readings</div></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
+      return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="ttl" style="font-size:17px">' + esc(T.testTitle(t)) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div class="muted" style="font-size:14px">' + esc([t.machine_code ? t.template_name : '', t.product].filter(Boolean).join(' · ')) + ' · ' + b.readings.length + ' readings</div><span class="idref">' + esc(t.test_id) + '</span></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
     }).join('') : '<div class="empty">' + icon('lock', 32) + '<b>No finished tests yet</b></div>';
     h += '</section><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
     return h;
@@ -145,7 +144,7 @@
     return d;
   }
   function setupHeader(d, sub, back) {
-    return '<header class="hdr" style="padding:8px 12px 8px 8px;border-bottom:0"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="' + back + '" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span class="num" style="font-size:18px;font-weight:700;line-height:1.2;white-space:nowrap">' + esc(d.test_id) + '</span><span class="muted" style="font-size:14px">' + sub + '</span></div>' + syncBadge() + '</div></header>';
+    return '<header class="hdr" style="padding:8px 12px 8px 8px;border-bottom:0"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="' + back + '" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col" style="min-width:0"><span class="ttl">' + sub + '</span><span class="idref">' + esc(d.test_id) + '</span></div>' + syncBadge() + '</div></header>';
   }
   function stepBar(n) {
     return '<nav class="stepbar" aria-label="Steps"><div class="' + (n === 1 ? 'on' : '') + '"><i></i><span>1 · Setup</span></div><div class="' + (n === 2 ? 'on' : '') + '"><i></i><span>2 · Columns</span></div></nav>';
@@ -187,7 +186,7 @@
     var d = ensureDraft(), pr = product(d.product), tpl = S().templates.find(function (t) { return t.id === d.template_id; });
     var h = setupHeader(d, 'New test', 'home') + stepBar(1) + '<main class="scroll" style="padding:14px 16px 20px">';
     h += '<div class="field"><span class="lbl">Template</span><button type="button" data-act="pickTemplate" style="display:flex;align-items:center;gap:10px;min-height:76px;padding:10px 12px 10px 14px;border-radius:12px;border:2px solid var(--ink);background:var(--surface);text-align:left;width:100%"><span class="grow col" style="gap:2px"><span style="font-size:13px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px">' + esc(d.product || 'No product') + '</span><span style="font-size:18px;font-weight:800;line-height:1.2">' + esc(d.template_name || 'No template') + '</span><span class="muted" style="font-size:14px">' + d.columns.length + ' columns</span></span><span class="row" style="gap:2px;font-size:16px;font-weight:700;color:var(--accent)">Change' + icon('chevron', 20) + '</span></button></div>';
-    h += field('Machine code', '<input class="inp mono" data-in="draft" data-k="machine_code" autocapitalize="characters" value="' + esc(d.machine_code) + '">');
+    h += field('Machine name/code', '<input class="inp mono" data-in="draft" data-k="machine_code" autocapitalize="characters" value="' + esc(d.machine_code) + '">');
     if (pr.modes.length) {
       h += '<div class="field"><span class="lbl">Machine mode</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.map(function (m) {
         var on = d.mode === m;
@@ -229,8 +228,8 @@
   }
   function columnList(cols, actPrefix) {
     return '<ol style="list-style:none;margin:0;padding:0;border-radius:14px;background:var(--surface);border:1px solid var(--line);overflow:hidden">' + cols.map(function (c, i) {
-      return '<li class="colrow' + (c.on === false ? ' off' : '') + '"><button type="button" class="mv" data-act="' + actPrefix + 'Edit" data-i="' + i + '" aria-label="Move or change ' + esc(c.name) + '">' + icon('grip', 22) + '</button>' +
-        '<button type="button" class="main" data-act="' + actPrefix + 'Edit" data-i="' + i + '"><span class="typeb num">' + ({ number: '123', text: 'Aa', yesno: 'Y/N', pick: 'List' }[c.type] || '?') + '</span><span class="col" style="min-width:0"><span style="font-size:17px;font-weight:700;line-height:1.2">' + esc(c.name) + '</span><span class="muted" style="font-size:14px">' + (c.on === false ? 'Off · ' : '') + esc(colMeta(c)) + '</span></span></button>' +
+      return '<li class="colrow' + (c.on === false ? ' off' : '') + '"><button type="button" class="mv" data-drag="' + i + '" aria-label="Hold and drag to move ' + esc(c.name) + '">' + icon('grip', 22) + '</button>' +
+        '<button type="button" class="main" data-act="' + actPrefix + 'Edit" data-i="' + i + '"><span class="col" style="min-width:0"><span style="font-size:17px;font-weight:700;line-height:1.2">' + esc(c.name) + '</span><span class="muted" style="font-size:14px">' + (c.on === false ? 'Off · ' : '') + esc(colMeta(c)) + '</span></span></button>' +
         switchBtn(c.on !== false, actPrefix + 'Toggle', 'data-i="' + i + '"', 'Use ' + c.name + ' in this test') + '</li>';
     }).join('') + '</ol>';
   }
@@ -306,8 +305,8 @@
   }
   function testHeader(b, mine) {
     var t = b.test;
-    var h = '<header class="hdr test"><div class="row" style="gap:6px"><button type="button" class="iconbtn" style="margin-left:-6px" data-act="home" aria-label="Back to home">' + icon('back', 26) + '</button><div class="grow col"><span class="num" style="font-size:' + (mine ? 21 : 17) + 'px;font-weight:700;line-height:1.2;white-space:nowrap">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' +
-      (t.status === 'finished' ? 'Finished · ' : mine ? '' : 'Running · ') + '<strong class="num" style="color:var(--ink)" data-tick="elapsed">' + elapsedText(b) + '</strong> · <strong class="num" style="color:var(--ink)">' + b.readings.length + '</strong> readings</span></div>' +
+    var h = '<header class="hdr test"><div class="row" style="gap:6px"><button type="button" class="iconbtn" style="margin-left:-6px" data-act="home" aria-label="Back to home">' + icon('back', 26) + '</button><div class="grow col" style="min-width:0"><span class="ttl">' + esc(T.testTitle(t)) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' +
+      (t.status === 'finished' ? 'Finished · ' : mine ? '' : 'Running · ') + '<strong class="num" style="color:var(--ink)" data-tick="elapsed">' + elapsedText(b) + '</strong> · <strong class="num" style="color:var(--ink)">' + b.readings.length + '</strong> readings</span><span class="idref">' + esc(t.test_id) + '</span></div>' +
       (mine ? torchBtn() + '<button type="button" class="iconbtn" style="margin-right:-6px" data-act="menu" aria-label="More actions. Hand over. Finish test.">' + icon('more', 26) + '</button>' : syncBadge()) + '</div>';
     if (mine) h += '<div class="between"><span class="badge-rec big">' + icon('person', 20) + '<span>Recorder: <strong>' + esc(T.personName(t.current_recorder)) + '</strong></span></span>' + syncBadge() + '</div>';
     if (t.status !== 'finished') h += '<div class="tiles2"' + (t.track_compressor ? '' : ' style="grid-template-columns:1fr"') + '>' + countTile(b, mine) + (t.track_compressor ? compTile(b, mine) : '') + '</div>';
@@ -332,7 +331,13 @@
     var label = esc(c.name) + (opts.isNew ? ' <span class="tag new">NEW</span>' : '') + (opts.was !== undefined ? ' <span class="tag edited">' + icon('pencil', 12) + 'EDITED</span>' : '');
     var left = '<div class="grow col" style="gap:2px"><label for="' + id + '">' + label + '</label><span class="sub">' + sub + '</span></div>';
     var cls = (value !== '' && value !== undefined ? 'filled' : '') + (opts.was !== undefined ? ' edited' : '');
-    if (c.type === 'number') return '<div class="rin">' + left + (opts.readonly ? '' : '<button type="button" class="pm" data-act="plusMinus" data-c="' + esc(c.id) + '" aria-label="Plus or minus for ' + esc(c.name) + '">±</button>') + '<input id="' + id + '" class="' + cls + '" inputmode="decimal" autocomplete="off" data-in="val" data-c="' + esc(c.id) + '" value="' + esc(value || '') + '"' + dis + '></div>';
+    if (c.type === 'number') {
+      // Line 1: name and last value. Line 2: sign, down, the number, up. The grey number is where the value should be by now.
+      var pr = T.predict(b, c, opts.at), hint = opts.edit ? '' : pr.value, cid = esc(c.id);
+      var inp = '<input id="' + id + '" class="' + cls + '" inputmode="decimal" enterkeyhint="next" autocomplete="off" data-in="val" data-c="' + cid + '" data-dec="' + pr.dec + '" data-pred="' + esc(hint) + '" placeholder="' + esc(hint) + '" value="' + esc(value || '') + '"' + dis + '>';
+      return '<div class="rin num2"><div class="between" style="align-items:baseline"><label for="' + id + '">' + label + '</label><span class="sub" style="white-space:nowrap">' + sub + '</span></div><div class="ctl">' +
+        (opts.readonly ? inp : '<button type="button" class="pm" data-act="plusMinus" data-c="' + cid + '" aria-label="Plus or minus for ' + esc(c.name) + '">±</button><button type="button" class="pm" data-act="spin" data-d="-1" data-c="' + cid + '" aria-label="Lower ' + esc(c.name) + '">' + icon('minus') + '</button>' + inp + '<button type="button" class="pm" data-act="spin" data-d="1" data-c="' + cid + '" aria-label="Raise ' + esc(c.name) + '">' + icon('plus') + '</button>') + '</div></div>';
+    }
     if (c.type === 'text') return '<div class="rin">' + left + '<input id="' + id + '" class="text ' + cls + '" autocomplete="off" data-in="val" data-c="' + esc(c.id) + '" value="' + esc(value || '') + '"' + dis + '></div>';
     var options = c.type === 'yesno' ? ['Yes', 'No'] : (c.options || []);
     return '<div class="rin">' + left + '<div class="opts" role="radiogroup">' + options.map(function (o) {
@@ -356,7 +361,8 @@
     var h = testHeader(b, true) + '<main class="scroll" style="padding:12px 16px 24px;gap:0">' + handoverNote(b);
     h += '<div class="between" style="align-items:baseline;margin-bottom:8px"><h2 style="font-size:22px;font-weight:800">Reading ' + no + '</h2></div>';
     h += timeField(d.time || U.localISO(), !!d.time, U.localISO(), false);
-    h += cols.map(function (c) { return inputRow(b, c, d.values[c.id], { isNew: firstNew[c.id] }); }).join('');
+    var hintAt = d.time || U.localISO();   // the grey number is for the time shown in the Time box: phone time, or the changed time
+    h += cols.map(function (c) { return inputRow(b, c, d.values[c.id], { isNew: firstNew[c.id], at: hintAt }); }).join('');
     h += '<div class="field" style="padding-top:16px"><label for="r-notes" style="font-size:17px">Notes for this reading</label><textarea id="r-notes" class="inp" rows="3" data-in="note">' + esc(d.note) + '</textarea></div>';
     h += '<div class="field" style="padding-top:16px"><span class="lbl" style="font-size:17px">Photos for this reading</span>' + photoRow(t.test_id, d.reading_id, no, true) + '</div>';
     h += '<div class="col" style="gap:6px;padding-top:18px"><button type="button" class="btn second" data-act="addColumn">' + icon('plus') + 'Add column</button></div>';
@@ -402,7 +408,7 @@
     var hist = b.edits.filter(function (x) { return x.reading_id === r.reading_id; }).sort(function (x, y) { return (y.at || '').localeCompare(x.at || ''); });
     var first = {};
     hist.slice().reverse().forEach(function (x) { if (first[x.column_id] === undefined) first[x.column_id] = x.old_value; });
-    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Reading ' + r.no + '</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + torchBtn() + syncBadge() + '</div></header>';
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Reading ' + r.no + '</span><span class="idref">' + esc(T.testTitle(t)) + ' · ' + esc(t.test_id) + '</span></div>' + torchBtn() + syncBadge() + '</div></header>';
     h += '<main class="scroll" style="padding:14px 16px 24px;gap:0">';
     if (r.late) h += '<div class="banner warn" style="margin-bottom:12px">' + icon('warn') + '<span><b>Recorded after handover</b><br>A reviewer will choose which reading ' + r.no + ' to use.</span></div>';
     h += '<div class="row" style="gap:12px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);margin-bottom:12px">' + avatar(T.personName(r.by)) + '<span class="grow col"><span class="muted" style="font-size:14px;font-weight:700">Recorded by</span><strong style="font-size:18px;line-height:1.2">' + esc(T.personName(r.by)) + '</strong></span><span class="col muted" style="align-items:flex-end;font-size:14px"><span class="num" style="font-weight:700;color:var(--ink)">' + esc(U.dmhm(r.time)) + '</span><span>Phone <strong class="num" style="color:var(--ink)">' + esc(r.phone || '-') + '</strong></span></span></div>';
@@ -426,7 +432,7 @@
   function finishScreen(b) {
     var t = b.test, f = finishDraft(b), end = f.ended_at || U.localISO(), en = T.energy(b), comp = T.compressor(b, end);
     var compMin = f.comp_min !== null ? f.comp_min : Math.round(comp.totalMin);
-    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span class="num" style="font-size:18px;font-weight:700;line-height:1.2">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px">Finish test</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col" style="min-width:0"><span class="ttl">Finish test · ' + esc(T.testTitle(t)) + '</span><span class="idref">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
     h += '<div class="timefield" data-changed="' + !!f.ended_at + '">' + icon('clock', 26) + '<span class="grow col"><span class="muted" style="font-size:14px;font-weight:700">End time</span><span class="row"><span class="num v"' + (f.ended_at ? '' : ' data-tick="clock"') + '>' + esc(U.hhmm(end)) + '</span>' + (f.ended_at ? '<span class="chip mark">Changed</span>' : '<span class="chip">Phone time</span>') + '</span></span><button type="button" class="smallbtn" data-act="endTimeSheet">Change</button></div>';
     h += '<div class="grid2">' + stat('Started', U.hhmm(t.started_at), U.dm(t.started_at)) + stat('Total time', U.dur(U.minsBetween(t.started_at, end))) + stat('Readings', b.readings.length) +
       (en ? stat('Total energy <span class="chip">Auto</span>', en.total !== null ? en.total.toFixed(2) + ' <span style="font-size:15px">kWh</span>' : '-', en.total !== null ? 'From ' + esc(en.col.name) + ': ' + en.first + ' → ' + en.last : 'Needs 2 readings of ' + esc(en.col.name)) : '') + '</div>';
@@ -442,7 +448,7 @@
     var t = b.test, st = S(), hd = ui.hand || (ui.hand = { to: '', where: 'own', note: '' });
     var list = people().filter(function (p) { return p.username !== st.current; }), to = list.find(function (p) { return p.username === hd.to; });
     var needSync = hd.where === 'own' && (!navigator.onLine || T.waitingCount() > 0);
-    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Hand over</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Hand over</span><span class="idref">' + esc(T.testTitle(t)) + ' · ' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
     h += '<div class="field"><span class="lbl" style="font-size:18px">Who records next?</span><div class="col" style="gap:6px">' + (list.length ? list.map(function (p) {
       return '<button type="button" class="person" aria-pressed="' + (p.username === hd.to) + '" data-act="handTo" data-u="' + esc(p.username) + '">' + avatar(p.name) + '<span class="grow">' + esc(p.name) + '</span>' + (p.username === hd.to ? icon('check') : '') + '</button>';
     }).join('') : '<div class="empty"><b>No other people yet</b></div>') + '</div></div>';
@@ -463,13 +469,19 @@
     if (s.name === 'column') return columnSheet();
     if (s.name === 'password') return '';
     if (s.name === 'menu') {
-      return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toSetupEdit">' + icon('pencil', 24) + '<span class="grow">Change setup</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="settings">' + icon('settings', 24) + '<span class="grow">Settings</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
+      return open + '<div class="col"><h2>' + esc(T.testTitle(b.test)) + '</h2><span class="idref">' + esc(b.test.test_id) + '</span></div><button type="button" class="menuitem" data-act="toSetupEdit">' + icon('pencil', 24) + '<span class="grow">Change setup</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="settings">' + icon('settings', 24) + '<span class="grow">Settings</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem bad" data-act="deleteSheet">' + icon('trash', 24) + '<span class="grow">' + (b.readings.length ? 'Delete test' : 'Discard test') + '</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
     }
     if (s.name === 'interval') {
       var cur = s.value, last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, b.test.started_at || ''), next = cur ? new Date(U.toDate(last).getTime() + cur * 60000) : null;
       return open + '<h2>Reading interval and alarm</h2>' + intervalField(cur, 'sheet') + alarmRow(s.alarm, 'sheetAlarm') +
         (next ? '<p class="tip">' + icon('timer') + '<span>Next reading will be at <strong class="num" style="color:var(--ink)">' + U.pad(next.getHours()) + ':' + U.pad(next.getMinutes()) + '</strong></span></p>' : '') +
         '<button type="button" class="btn" data-act="intervalSave">' + icon('check') + 'Save</button>' + close;
+    }
+    if (s.name === 'delete') {
+      var nR = b.readings.length;
+      return open + '<div class="col"><h2>' + (nR ? 'Delete' : 'Discard') + ' ' + esc(T.testTitle(b.test)) + '?</h2><span class="idref">' + esc(b.test.test_id) + '</span></div>' +
+        (nR ? '<div class="banner bad">' + icon('warn') + '<span><b>' + nR + ' reading' + (nR === 1 ? '' : 's') + ' will be hidden</b><br>The test is locked and removed from the lists. The data stays in the Google Sheet.</span></div>' + field('Reason', '<textarea class="inp" rows="3" id="del-reason" data-in="delReason">' + esc(s.reason || '') + '</textarea>') : '') +
+        '<button type="button" class="btn bad" data-act="doDelete">' + icon('trash') + (nR ? 'Yes, delete test' : 'Yes, discard test') + '</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
     }
     if (s.name === 'time') {
       return open + '<h2>' + esc(s.title) + '</h2>' + field('Time', '<input class="inp mono" type="datetime-local" id="time-in" value="' + esc((s.value || U.localISO()).slice(0, 16)) + '">') +
@@ -480,7 +492,7 @@
     }
     if (s.name === 'lock') {
       var f = finishDraft(b), end = f.ended_at || U.localISO(), en = T.energy(b);
-      return open + '<h2>Finish and lock <span class="num">' + esc(b.test.test_id) + '</span>?</h2><p class="muted" style="font-size:17px">You cannot add or change readings after this.</p><div class="grid2">' + stat('Readings', b.readings.length) + stat('Total time', U.dur(U.minsBetween(b.test.started_at, end))) + (en && en.total !== null ? stat('Energy', en.total.toFixed(2) + ' kWh') : '') + '</div><button type="button" class="btn" data-act="doFinish">' + icon('lock') + 'Yes, finish and lock</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
+      return open + '<div class="col"><h2>Finish and lock ' + esc(T.testTitle(b.test)) + '?</h2><span class="idref">' + esc(b.test.test_id) + '</span></div><p class="muted" style="font-size:17px">You cannot add or change readings after this.</p><div class="grid2">' + stat('Readings', b.readings.length) + stat('Total time', U.dur(U.minsBetween(b.test.started_at, end))) + (en && en.total !== null ? stat('Energy', en.total.toFixed(2) + ' kWh') : '') + '</div><button type="button" class="btn" data-act="doFinish">' + icon('lock') + 'Yes, finish and lock</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
     }
     if (s.name === 'takeover') {
       var who = T.personName(b.test.current_recorder), c = T.compressor(b);
@@ -523,17 +535,17 @@
   function settingsScreen() {
     var st = S(), me = T.me(), box = function (title, inner) { return '<section class="col" style="gap:10px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">' + title + '</h2>' + inner + '</section>'; };
     var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="home" aria-label="Back">' + icon('back', 26) + '</button><span class="grow" style="font-size:20px;font-weight:800">Settings</span>' + syncBadge() + '</div></header><main class="scroll">';
-    h += box('Account', '<div class="row" style="gap:12px">' + avatar(me.name) + '<span class="grow col"><strong style="font-size:19px">' + esc(me.name) + '</strong><span class="muted" style="font-size:14px">' + esc(me.username) + ' · ' + (me.role === 'reviewer' ? 'Reviewer' : 'Engineer') + '</span></span></div><button type="button" class="btn second" data-act="changeUser">' + icon('swap') + 'Change user</button>');
+    h += box('Account', '<div class="row" style="gap:12px">' + avatar(me.name) + '<span class="grow col"><strong style="font-size:19px">' + esc(me.name) + '</strong><span class="muted" style="font-size:14px">' + esc(me.username) + ' · ' + (me.role === 'reviewer' ? 'Reviewer' : 'Engineer') + '</span></span><button type="button" class="smallbtn" data-act="changeUser">' + icon('swap', 18) + ' Change user</button></div>');
     h += box('Alarm', alarmPanel());
     h += box('Display', '<div class="between" style="min-height:48px"><span style="font-size:17px;font-weight:700">Dark theme</span>' + switchBtn(st.theme === 'dark', 'theme', '', 'Dark theme') + '</div>');
     h += box('Computer', '<a class="btn second" href="desk.html">Open computer view' + icon('chevron') + '</a>');
     var line = function (k, v) { return '<div class="between" style="min-height:40px"><span style="font-size:17px">' + k + '</span><strong class="num" style="font-size:18px">' + v + '</strong></div>'; };
-    h += box('Build numbers', line('App build', T.BUILD) + line('Alarm app build', T.alarm.info.present ? T.alarm.info.shellBuild : 'Not installed') + line('Phone code', esc(st.phone || '?')));
+    h += box('Build numbers', line('App build', T.BUILD) + line('Alarm app build', T.alarm.info.present ? T.alarm.info.shellBuild : 'Not installed') + line('Phone code', esc(st.phone || '?')) + (T.update.state.server ? line('Newest app build', T.update.state.server) : '') + '<button type="button" class="btn second" data-act="checkUpdate"' + (ui.updBusy ? ' disabled' : '') + '>' + (ui.updBusy ? spin() : icon('retry')) + 'Check for update</button>');
     return h + '</main>';
   }
 
   /* ---------- change setup during a test ---------- */
-  function setupList(t) { return [{ id: 'machine_code', name: 'Machine code' }, { id: 'mode', name: 'Machine mode' }].concat(T.setupFields(t.columns, t.product)).concat([{ id: 'notes', name: 'Notes' }]); }
+  function setupList(t) { return [{ id: 'machine_code', name: 'Machine name/code' }, { id: 'mode', name: 'Machine mode' }].concat(T.setupFields(t.columns, t.product)).concat([{ id: 'notes', name: 'Notes' }]); }
   function setupOf(t) {
     var x = t.setup || {}, o = { machine_code: t.machine_code || '', mode: t.mode || '', notes: x.notes || '' };
     T.setupFields(t.columns, t.product).forEach(function (f) { o[f.id] = x[f.id] || ''; });
@@ -541,8 +553,8 @@
   }
   function editSetupScreen(b) {
     var t = b.test, e = ui.setupEdit || (ui.setupEdit = setupOf(t)), pr = product(t.product);
-    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Change setup</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
-    h += field('Machine code', '<input class="inp mono" id="se-machine_code" data-in="se" data-k="machine_code" autocapitalize="characters" value="' + esc(e.machine_code) + '">');
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Change setup</span><span class="idref">' + esc(T.testTitle(t)) + ' · ' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
+    h += field('Machine name/code', '<input class="inp mono" id="se-machine_code" data-in="se" data-k="machine_code" autocapitalize="characters" value="' + esc(e.machine_code) + '">');
     if (pr.modes.length || e.mode) h += '<div class="field"><span class="lbl">Machine mode</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.concat(e.mode && pr.modes.indexOf(e.mode) < 0 ? [e.mode] : []).map(function (m) {
       var on = e.mode === m;
       return '<button type="button" class="radio" role="radio" aria-checked="' + on + '" data-act="seMode" data-m="' + esc(m) + '">' + (on ? icon('check', 22) : '') + '<span class="grow">' + esc(m) + '</span></button>';
@@ -620,6 +632,16 @@
       else if (k === 'comp' && b) el.outerHTML = compTile(b, T.iAmRecorder(b));
       else if (k === 'pill' && st.tests[el.dataset.id]) { var due = T.nextDue(st.tests[el.dataset.id]); el.innerHTML = pillText(due); el.classList.toggle('due', !!due && due <= Date.now()); }
     });
+    // The grey numbers follow the clock: they are worked out again every second for the time in the Time box.
+    if (b && p.length === 2 && T.iAmRecorder(b)) {
+      var at = (st.drafts[b.test.test_id] || {}).time || now;
+      root.querySelectorAll('main input[data-in=val][data-pred]').forEach(function (el) {
+        var col = b.test.columns.find(function (c) { return c.id === el.dataset.c; });
+        if (!col) return;
+        var v = T.predict(b, col, at).value;
+        if (el.dataset.pred !== v) { el.dataset.pred = v; el.placeholder = v; }
+      });
+    }
     Object.keys(st.tests).forEach(function (id) {
       var x = st.tests[id]; if (!T.iAmRecorder(x) || T.alarm.info.present || !T.alarm.alarmOn(x.test)) return;
       var due = T.nextDue(x); if (!due || due > Date.now()) return;
@@ -632,7 +654,12 @@
 
   /* ---------- actions ---------- */
   function curTest() { var p = parts(); return p[0] === 't' ? S().tests[p[1]] : null; }
-  function cleanNumber(v) { return String(v).replace(',', '.').replace(/[^0-9.\-]/g, '').replace(/(?!^)-/g, '').replace(/(\..*)\./g, '$1'); }
+  function cleanNumber(v) {
+    var c = String(v).replace(',', '.').replace(/[^0-9.\-]/g, '').replace(/(?!^)-/g, '').replace(/(\..*)\./g, '$1'), n = Number(c);
+    if (n > T.LIMIT) return String(T.LIMIT);
+    if (n < -T.LIMIT) return String(-T.LIMIT);
+    return c;
+  }
   var actions = {
     home: function () { go(''); },
     closeSheet: function () { ui.sheet = null; ui.err = ''; render(); },
@@ -749,7 +776,34 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     plusMinus: function (el) {
       var inp = document.getElementById('in-' + el.dataset.c), v = inp.value;
       inp.value = v[0] === '-' ? v.slice(1) : '-' + v;
-      inp.dispatchEvent(new Event('input', { bubbles: true })); inp.focus();
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    },
+    // One press of + or - on an empty box puts in the grey number. Every press after that moves it by one point (1, 0.1 or 0.01).
+    spin: function (el) {
+      var inp = document.getElementById('in-' + el.dataset.c), v = inp.value.trim(), dec = Math.max(Number(inp.dataset.dec || 0), T.decimalsOf(v)), step = Math.pow(10, -dec), d = Number(el.dataset.d), n;
+      if (v === '' || v === '-' || isNaN(Number(v))) n = inp.dataset.pred !== '' ? Number(inp.dataset.pred) : d * step;
+      else n = Number(v) + d * step;
+      inp.value = Math.max(-T.LIMIT, Math.min(T.LIMIT, n)).toFixed(dec);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    },
+    deleteSheet: function () { ui.sheet = { name: 'delete', reason: '' }; render(); },
+    doDelete: function () {
+      var b = curTest(), st = S(), id = b.test.test_id, n = b.readings.length, reason = n ? (ui.sheet.reason || '').trim() : 'No readings';
+      if (!reason) return toast('Write the reason first.', 'bad');
+      var opId = function (o) { var q = o.payload; return q.test_id || (q.test && q.test.test_id) || (q.reading && q.reading.test_id) || (q.event && q.event.test_id) || (q.note && q.note.test_id); };
+      var neverSent = !T.live.syncing && st.outbox.some(function (o) { return o.type === 'test.create' && o.payload.test.test_id === id; });
+      if (neverSent) {
+        // The test never reached the Sheet, so it is simply removed from this phone.
+        st.outbox = st.outbox.filter(function (o) { return opId(o) !== id; });
+        delete st.tests[id];
+        T.photosDb.all().then(function (all) { all.forEach(function (ph) { if (ph.test_id === id) T.photosDb.del(ph.photo_id); }); });
+      } else {
+        var now = U.localISO();
+        T.act('event.add', { event: { event_id: U.uid(), test_id: id, kind: 'deleted', time: now, text: 'Test deleted by ' + T.me().name + '. Reason: ' + reason } });
+        T.act('test.finish', { test_id: id, ended_at: now, final_remarks: '[DELETED] ' + reason, comp_on_min: null, event_id: U.uid() });
+      }
+      delete st.drafts[id]; delete st.drafts['finish:' + id]; T.save();
+      go(''); toast(n ? 'Test deleted.' : 'Test discarded.');
     },
     pickVal: function (el) {
       var p = parts(), target = p[2] === 'r' ? ui.edit.values : draftOf(curTest()).values;
@@ -832,6 +886,15 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       T.act('note.add', { note: { note_id: U.uid(), test_id: b.test.test_id, reading_id: '', text: text } });
       ui.addNote = ''; toast('Note added.');
     },
+    checkUpdate: function () {
+      ui.updBusy = true; render();
+      T.update.check().then(function (r) {
+        ui.updBusy = false;
+        if (!r.server) toast('Could not check. No internet.', 'bad');
+        else if (r.server > r.mine) toast('Build ' + r.server + ' is downloading. The app restarts by itself.', 'phone');
+        else toast('This is the newest build.');
+      });
+    },
     dismissNote: function (el) { S().seenTakeover['note:' + el.dataset.id] = true; T.save(); render(); },
     torch: function () { T.torch.toggle().then(function (r) { if (r.error) toast(r.error, 'bad'); }); },
     viewPhoto: function (el) { ui.sheet = { name: 'photo', id: el.dataset.photoId }; render(); }
@@ -841,9 +904,59 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     var el = ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
     if (el.classList.contains('scrim') && ev.target !== el) return;   // a tap inside the sheet must not close it
+    if (el.dataset.act === 'spin' && hold.n) { hold.n = 0; return; }
     var fn = actions[el.dataset.act];
     if (fn) fn(el, ev);
   });
+  // Hold + or - to keep moving the number.
+  var hold = { t: null, n: 0 };
+  function stopHold() { clearTimeout(hold.t); hold.t = null; }
+  root.addEventListener('pointerdown', function (ev) {
+    var el = ev.target.closest('[data-act=spin]');
+    if (el) {
+      stopHold(); hold.n = 0;
+      hold.t = setTimeout(function again() { hold.n++; actions.spin(el); hold.t = setTimeout(again, 90); }, 450);
+      return;
+    }
+    // Drag a column by its handle to change the order.
+    var h = ev.target.closest('[data-drag]');
+    if (!h || !S().newTest) return;
+    ev.preventDefault();
+    var li = h.closest('li'), rows = Array.prototype.slice.call(li.parentNode.children), from = rows.indexOf(li), to = from;
+    var main = root.querySelector('main'), y0 = ev.clientY, s0 = main.scrollTop, rects = rows.map(function (r) { return r.getBoundingClientRect(); });
+    try { h.setPointerCapture(ev.pointerId); } catch (e) {}
+    li.classList.add('dragging');
+    function move(e) {
+      var mr = main.getBoundingClientRect();
+      if (e.clientY > mr.bottom - 56) main.scrollTop += 14; else if (e.clientY < mr.top + 56) main.scrollTop -= 14;
+      var dy = e.clientY - y0 + (main.scrollTop - s0), mid = rects[from].top + rects[from].height / 2 + dy;
+      li.style.transform = 'translateY(' + dy + 'px)';
+      to = from;
+      rows.forEach(function (r, i) {
+        if (i === from) return;
+        var m = rects[i].top + rects[i].height / 2, shift = 0;
+        if (i > from && mid > m) { shift = -rects[from].height; to = Math.max(to, i); }
+        if (i < from && mid < m) { shift = rects[from].height; to = Math.min(to, i); }
+        r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+      });
+    }
+    function up() {
+      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      if (to !== from) { var cols = S().newTest.columns, x = cols.splice(from, 1)[0]; cols.splice(to, 0, x); T.save(); }
+      render();
+    }
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
+  ['pointerup', 'pointercancel'].forEach(function (n) { window.addEventListener(n, stopHold); });
+  // Typing moves to the next box by itself once the number has its usual digits after the point.
+  // Example: TE-1 was 30.6 last time (1 digit after the point), so typing 29.5 jumps to the next box.
+  // A box that already had a value when it was tapped does not jump, so a value can be corrected in peace.
+  function nextBox(el) {
+    var list = Array.prototype.slice.call(root.querySelectorAll('main input[data-in=val]')), nx = list[list.indexOf(el) + 1];
+    if (nx) { nx.focus(); if (nx.scrollIntoView) nx.scrollIntoView({ block: 'center', behavior: 'smooth' }); } else el.blur();
+  }
+  root.addEventListener('focusin', function (ev) { var el = ev.target; if (el.matches && el.matches('input[data-in=val]')) el.dataset.had = el.value !== '' ? '1' : ''; });
+  root.addEventListener('keydown', function (ev) { var el = ev.target; if (ev.key === 'Enter' && el.matches && el.matches('input[data-in=val]')) { ev.preventDefault(); nextBox(el); } });
   root.addEventListener('submit', function (ev) {
     ev.preventDefault();
     if (ev.target.dataset.form !== 'signin') return;
@@ -872,7 +985,10 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       if (col && col.type === 'number') { var c2 = cleanNumber(el.value); if (c2 !== el.value) el.value = c2; }
       (p[2] === 'r' ? ui.edit.values : draftOf(b).values)[el.dataset.c] = el.value;
       el.classList.toggle('filled', el.value !== '');
+      var dec = Number(el.dataset.dec || 0), typed = ev.inputType && ev.inputType.indexOf('insert') === 0, after = /\.(\d+)$/.exec(el.value);
+      if (typed && p[2] !== 'r' && col && col.type === 'number' && dec > 0 && el.dataset.had !== '1' && after && after[1].length >= dec) nextBox(el);
     }
+    else if (k === 'delReason') { ui.sheet.reason = el.value; return; }
     else if (k === 'se') { if (el.inputMode === 'decimal') el.value = cleanNumber(el.value); ui.setupEdit[el.dataset.k] = el.value; return; }
     else if (k === 'note') draftOf(curTest()).note = el.value;
     else if (k === 'editNote') ui.edit.note = el.value;
@@ -892,6 +1008,7 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
   T.on(function (what) {
     if (what === 'expired') { T.signOut(); toast('Please sign in again.', 'bad'); return; }
     if (String(what).indexOf('alarmOpen:') === 0) { var tid = String(what).slice(10); if (S().current && S().tests[tid]) go('t/' + encodeURIComponent(tid)); return; }
+    if (what === 'update') { tryUpdate(); return; }
     if (what === 'torch') { root.querySelectorAll('.torchbtn').forEach(function (x) { x.outerHTML = torchBtn(); }); return; }
     if (what === 'alarm') { if (!(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render(); return; }
     if (what === 'rejected') toast('1 change was not accepted. Open the sync details.', 'bad');
@@ -903,7 +1020,13 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       else refreshLocalPhotos().then(render);
     }
   });
-  window.addEventListener('hashchange', function () { ui.sheet = null; ui.err = ''; render(); });
+  // A new build restarts the app only where nothing can be lost: sign in, Home or Settings, with no sheet open and nobody typing.
+  function tryUpdate() {
+    if (!T.update.state.ready) return;
+    var p = parts(), a = document.activeElement, typing = a && /INPUT|TEXTAREA/.test(a.tagName) && root.contains(a);
+    if (!ui.sheet && !typing && (!S().current || !p.length || p[0] === 'settings')) T.update.apply();
+  }
+  window.addEventListener('hashchange', function () { ui.sheet = null; ui.err = ''; render(); tryUpdate(); });
   window.addEventListener('online', render); window.addEventListener('offline', render);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) T.scheduleSync(300); });
 
@@ -918,6 +1041,22 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     else go('');
     return true;
   };
+  // THE KEYBOARD MUST NOT COVER THE BOTTOM BUTTON (build 7). When the keyboard opens, many phones keep the
+  // page at full height and draw the keyboard over its lower part, so "Save reading" was hidden. The page is
+  // now made exactly as tall as the free part of the screen, and the box being typed in is scrolled into view.
+  (function () {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    function fit() {
+      var st = document.documentElement.style;
+      st.setProperty('--vh', Math.round(vv.height) + 'px');
+      st.setProperty('--vtop', Math.round(vv.offsetTop) + 'px');
+      var a = document.activeElement;
+      if (a && /INPUT|TEXTAREA/.test(a.tagName) && root.contains(a) && a.closest('main') && a.scrollIntoView) a.scrollIntoView({ block: 'center' });
+    }
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+    fit();
+  })();
   T.cfg.phoneCodes = true;
   T.load().then(refreshLocalPhotos).then(function () {
     render();
@@ -929,5 +1068,5 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       T.api('status', {}, 20000).then(function (r) { ui.serverUsers = r.hasUsers; if (!r.hasUsers) render(); else return T.fetchNames().then(function () { if (!S().current) render(); }); }).catch(function () {});
     }
   });
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
+  T.update.init();
 })();

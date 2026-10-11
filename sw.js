@@ -1,6 +1,6 @@
 /* Keeps the app working without internet. Change BUILD when the app files change. */
-var BUILD = 1, CACHE = 'testlog-b' + BUILD;
-var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/phone.js', 'js/desk.js', 'vendor/exceljs.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+var BUILD = 3, CACHE = 'testlog-b' + BUILD;
+var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/alarm.js', 'js/torch.js', 'js/phone.js', 'js/desk.js', 'vendor/exceljs.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return Promise.all(SHELL.map(function (u) { return c.add(u).catch(function () {}); })); }).then(function () { return self.skipWaiting(); }));
 });

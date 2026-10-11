@@ -34,6 +34,10 @@
     var map = { saved: [icon('cloudOk'), 'All saved'], waiting: [icon('cloudUp'), n + ' waiting'], saving: [spin(), 'Saving…'], failed: [icon('warn'), 'Sync failed'], offline: [icon('cloudOff'), 'Offline' + (n ? ' · ' + n : '')] };
     return '<button type="button" class="sync" data-state="' + s + '" data-act="syncSheet" aria-label="' + map[s][1] + '. Tap for sync details.">' + map[s][0] + '<span>' + map[s][1] + '</span></button>';
   }
+  function torchBtn() {
+    var on = T.torch.state.on;
+    return '<button type="button" class="iconbtn torchbtn" data-act="torch" aria-pressed="' + on + '" aria-label="Torch. ' + (on ? 'On. Tap to switch off.' : 'Off. Tap to switch on.') + '">' + icon('torch', 26) + '</button>';
+  }
   function brand() { return '<div class="brand"><small>FREEZIGO</small><b>Test Log</b></div>'; }
   function avatar(name, cls) { return '<span class="avatar ' + (cls || '') + '">' + esc(U.initials(name)) + '</span>'; }
   function people() { return S().people.filter(function (p) { return p.active !== false; }); }
@@ -161,6 +165,17 @@
     }).join('');
     return h + '</div>';
   }
+  function intervalField(cur, where) {
+    var opts = [5, 10, 15, 20, 30, 60];
+    return '<div class="field"><label for="f-interval">Reading interval</label><span class="muted" style="margin-top:-4px;font-size:14px">Type the minutes or tap one. Example: 15</span>' +
+      '<div class="unitwrap"><input id="f-interval" class="inp mono" inputmode="numeric" data-in="interval" data-w="' + where + '" value="' + (cur || '') + '" placeholder="15"><span>min</span></div>' +
+      '<div class="seg" style="grid-template-columns:repeat(6,1fr)" role="radiogroup" aria-label="Quick pick">' + opts.map(function (m) { return '<button type="button" role="radio" style="min-height:48px" aria-checked="' + (cur === m) + '" data-act="intervalPick" data-w="' + where + '" data-m="' + m + '"><span class="num">' + m + '</span></button>'; }).join('') + '</div></div>';
+  }
+  function alarmRow(on, act) {
+    var has = T.alarm.info.present, R = T.alarm.RING;
+    var text = has ? 'Rings ' + R.ringSec + ' seconds, every ' + R.everyMin + ' minute, until you save the reading. Stops after ' + R.stopAfterMin + ' minutes.' : 'Alarm app is not on this phone. You get a short beep, only while this app is open.';
+    return '<div class="row" style="gap:10px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">' + icon('timer', 26) + '<span class="grow col" style="gap:2px"><span style="font-size:17px;font-weight:700;line-height:1.2">Alarm when a reading is due</span><span class="muted" style="font-size:14px">' + text + '</span></span>' + switchBtn(on, act, '', 'Alarm when a reading is due') + '</div>';
+  }
   function setupScreen() {
     var d = ensureDraft(), pr = product(d.product), tpl = S().templates.find(function (t) { return t.id === d.template_id; });
     var h = setupHeader(d, 'New test', 'home') + stepBar(1) + '<main class="scroll" style="padding:14px 16px 20px">';
@@ -175,7 +190,8 @@
     }
     h += field('Date', '<input class="inp mono" type="date" data-in="draft" data-k="date" value="' + esc(d.date) + '">');
     h += '<div class="grid2" style="gap:16px 10px;align-items:end">' + numField('Refrigerant quantity', 'refrigerant_qty', 'kg', d.setup.refrigerant_qty) + numField('TS DM water', 'ts_water', 'L', d.setup.ts_water) + numField('BMC water', 'bmc_water', 'L', d.setup.bmc_water) +
-      '<div class="field"><span class="lbl" style="line-height:1.2">Reading interval</span><div class="stepper"><button type="button" data-act="interval" data-d="-1" aria-label="Less time">' + icon('minus') + '</button><span><span class="num" style="font-size:20px;font-weight:700">' + d.interval_min + '</span> <span class="muted" style="font-size:14px;font-weight:700">min</span></span><button type="button" data-act="interval" data-d="1" aria-label="More time">' + icon('plus') + '</button></div></div></div>';
+      '</div>';
+    h += intervalField(d.interval_min, 'draft') + alarmRow(d.setup.alarm !== false, 'draftAlarm');
     h += field('Notes', '<textarea class="inp" rows="3" data-in="setup" data-k="notes" placeholder="Example: BMC filled at 11:40. Water 34 °C.">' + esc(d.setup.notes) + '</textarea>');
     h += '<div class="field"><span class="lbl">Photos</span>' + photoRow(d.test_id, '', '', true) + '</div>';
     h += '<div class="field"><span class="lbl">Recorded by</span><div class="row" style="gap:12px;height:56px;padding:0 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">' + avatar(T.me().name, 'sm') + '<span class="grow" style="font-size:19px;font-weight:700">' + esc(T.me().name) + '</span><span class="muted" style="font-size:13px;font-weight:700">From sign in</span></div></div>';
@@ -280,7 +296,7 @@
   function countTile(b, clickable) {
     var t = b.test, due = T.nextDue(b), s = due ? Math.round((due - Date.now()) / 1000) : null, isDue = s !== null && s <= 0;
     var mid = !due ? 'No timer' : isDue ? 'Due now' : (clickable ? U.pad(Math.floor(s / 60)) + ':' + U.pad(s % 60) : U.pad(due.getHours()) + ':' + U.pad(due.getMinutes()));
-    return '<button type="button" class="count' + (isDue && clickable ? ' due' : '') + '" ' + (clickable ? 'data-act="intervalSheet"' : 'disabled style="opacity:1"') + ' data-tick="count"><span class="grow col" style="line-height:1.15"><span class="t">Next reading</span><b class="' + (isDue ? '' : 'num') + '">' + mid + '</b><small>' + (t.interval_min ? 'Every ' + t.interval_min + ' min' : 'Tap to set') + '</small></span>' + (clickable ? icon('chevron', 20) : '') + '</button>';
+    return '<button type="button" class="count' + (isDue && clickable ? ' due' : '') + '" ' + (clickable ? 'data-act="intervalSheet"' : 'disabled style="opacity:1"') + ' data-tick="count"><span class="grow col" style="line-height:1.15"><span class="t">Next reading</span><b class="' + (isDue ? '' : 'num') + '">' + mid + '</b><small>' + (t.interval_min ? 'Every ' + t.interval_min + ' min' + (T.alarm.alarmOn(t) ? '' : ' · alarm off') : 'Tap to set') + '</small></span>' + (clickable ? icon('chevron', 20) : '') + '</button>';
   }
   function compTile(b, clickable) {
     var c = T.compressor(b), mins = c.since ? U.minsBetween(c.since, U.localISO()) : 0;
@@ -292,7 +308,7 @@
     var t = b.test;
     var h = '<header class="hdr test"><div class="row" style="gap:6px"><button type="button" class="iconbtn" style="margin-left:-6px" data-act="home" aria-label="Back to home">' + icon('back', 26) + '</button><div class="grow col"><span class="num" style="font-size:' + (mine ? 21 : 17) + 'px;font-weight:700;line-height:1.2;white-space:nowrap">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' +
       (t.status === 'finished' ? 'Finished · ' : mine ? '' : 'Running · ') + '<strong class="num" style="color:var(--ink)" data-tick="elapsed">' + elapsedText(b) + '</strong> · <strong class="num" style="color:var(--ink)">' + b.readings.length + '</strong> readings</span></div>' +
-      (mine ? '<button type="button" class="iconbtn" style="margin-right:-6px" data-act="menu" aria-label="More actions. Hand over. Finish test.">' + icon('more', 26) + '</button>' : syncBadge()) + '</div>';
+      (mine ? torchBtn() + '<button type="button" class="iconbtn" style="margin-right:-6px" data-act="menu" aria-label="More actions. Hand over. Finish test.">' + icon('more', 26) + '</button>' : syncBadge()) + '</div>';
     if (mine) h += '<div class="between"><span class="badge-rec big">' + icon('person', 20) + '<span>Recorder: <strong>' + esc(T.personName(t.current_recorder)) + '</strong></span></span>' + syncBadge() + '</div>';
     if (t.status !== 'finished') h += '<div class="tiles2"' + (t.track_compressor ? '' : ' style="grid-template-columns:1fr"') + '>' + countTile(b, mine) + (t.track_compressor ? compTile(b, mine) : '') + '</div>';
     return h + '</header>';
@@ -382,7 +398,7 @@
     var hist = b.edits.filter(function (x) { return x.reading_id === r.reading_id; }).sort(function (x, y) { return (y.at || '').localeCompare(x.at || ''); });
     var first = {};
     hist.slice().reverse().forEach(function (x) { if (first[x.column_id] === undefined) first[x.column_id] = x.old_value; });
-    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Reading ' + r.no + '</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header>';
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Reading ' + r.no + '</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + torchBtn() + syncBadge() + '</div></header>';
     h += '<main class="scroll" style="padding:14px 16px 24px;gap:0">';
     if (r.late) h += '<div class="banner warn" style="margin-bottom:12px">' + icon('warn') + '<span><b>Recorded after handover</b><br>A reviewer will choose which reading ' + r.no + ' to use.</span></div>';
     h += '<div class="row" style="gap:12px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);margin-bottom:12px">' + avatar(T.personName(r.by)) + '<span class="grow col"><span class="muted" style="font-size:14px;font-weight:700">Recorded by</span><strong style="font-size:18px;line-height:1.2">' + esc(T.personName(r.by)) + '</strong></span><span class="col muted" style="align-items:flex-end;font-size:14px"><span class="num" style="font-weight:700;color:var(--ink)">' + esc(U.dmhm(r.time)) + '</span><span>Phone <strong class="num" style="color:var(--ink)">' + esc(r.phone || '-') + '</strong></span></span></div>';
@@ -449,11 +465,10 @@
       return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
     }
     if (s.name === 'interval') {
-      var opts = [5, 10, 15, 20, 30, 60], cur = s.value, last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, b.test.started_at || ''), next = cur ? new Date(U.toDate(last).getTime() + cur * 60000) : null;
-      return open + '<h2>Reading interval</h2><p class="muted">How often do you take a reading?</p><div class="seg" style="grid-template-columns:repeat(3,1fr)" role="radiogroup">' + opts.map(function (m) { return '<button type="button" role="radio" aria-checked="' + (cur === m) + '" data-act="intervalPick" data-m="' + m + '"><span class="num" style="font-size:20px">' + m + '</span><span style="font-size:13px">min</span></button>'; }).join('') + '</div>' +
-        field('Other time (minutes)', '<input class="inp mono" inputmode="numeric" data-in="intervalOther" value="' + (opts.indexOf(cur) < 0 && cur ? cur : '') + '" placeholder="Example: 45">') +
+      var cur = s.value, last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, b.test.started_at || ''), next = cur ? new Date(U.toDate(last).getTime() + cur * 60000) : null;
+      return open + '<h2>Reading interval and alarm</h2>' + intervalField(cur, 'sheet') + alarmRow(s.alarm, 'sheetAlarm') +
         (next ? '<p class="tip">' + icon('timer') + '<span>Next reading will be at <strong class="num" style="color:var(--ink)">' + U.pad(next.getHours()) + ':' + U.pad(next.getMinutes()) + '</strong></span></p>' : '') +
-        '<button type="button" class="btn" data-act="intervalSave">' + icon('check') + 'Save interval</button>' + close;
+        '<button type="button" class="btn" data-act="intervalSave">' + icon('check') + 'Save</button>' + close;
     }
     if (s.name === 'time') {
       return open + '<h2>' + esc(s.title) + '</h2><p class="muted">Use this only when the reading was taken at another time. A changed time is marked.</p>' + field('Time', '<input class="inp mono" type="datetime-local" id="time-in" value="' + esc((s.value || U.localISO()).slice(0, 16)) + '">') +
@@ -484,10 +499,21 @@
       if (T.live.error && state === 'failed') h += '<p class="err">' + esc(T.live.error) + '</p>';
       if (T.live.blockedUser) h += '<div class="banner warn">' + icon('warn') + '<span><b>' + esc(T.personName(T.live.blockedUser)) + ' must sign in</b><br>Some readings saved by ' + esc(T.personName(T.live.blockedUser)) + ' are waiting. They send after ' + esc(T.personName(T.live.blockedUser)) + ' signs in on this phone with internet.</span></div>';
       if (st.failed.length) h += '<div class="banner bad">' + icon('warn') + '<span><b>' + st.failed.length + ' change(s) were not accepted</b><br>' + esc(st.failed[st.failed.length - 1].error) + '<br>Tell your manager. The data is kept on this phone.</span></div>';
+      h += alarmPanel();
       h += '<button type="button" class="btn" data-act="syncNow"' + (T.live.syncing ? ' disabled' : '') + '>' + icon('syncArrows') + 'Sync now</button><button type="button" class="btn second" data-act="closeSheet">Close</button><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p>' + close;
       return h;
     }
     return '';
+  }
+
+  function alarmPanel() {
+    var a = T.alarm.info;
+    if (!a.present) return '<div class="tip">' + icon('timer') + '<span><strong style="color:var(--ink)">Alarm app is not on this phone</strong><br>For a loud alarm when the phone is locked, install the Test Log alarm app. <a href="testlog-alarm.apk">Download the alarm app</a></span></div>';
+    var p = a.perms || {}, rows = [['notifications', 'Show notifications'], ['exactAlarm', 'Ring at the exact time'], ['fullScreen', 'Show over the lock screen'], ['batteryExempt', 'Run when the phone saves battery']];
+    var missing = rows.filter(function (r) { return p[r[0]] === false; });
+    return '<div class="col" style="gap:8px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2)"><div class="between"><strong>' + icon('timer', 18) + ' Alarm app</strong><span class="chip">shell build ' + a.shellBuild + '</span></div>' +
+      (missing.length ? '<span class="err">' + missing.length + ' permission' + (missing.length === 1 ? ' is' : 's are') + ' missing. The alarm may not ring.</span>' : '<span class="muted" style="font-size:15px">All 4 permissions are given. ' + Object.keys(a.armed).length + ' alarm(s) set now.</span>') +
+      rows.map(function (r) { return '<div class="between" style="min-height:44px"><span class="row">' + icon(p[r[0]] === false ? 'warn' : 'check', 18) + r[1] + '</span>' + (p[r[0]] === false ? '<button type="button" class="smallbtn" style="height:40px" data-act="alarmPerm" data-p="' + r[0] + '">Allow</button>' : '') + '</div>'; }).join('') + '</div>';
   }
 
   /* ---------- render ---------- */
@@ -555,7 +581,7 @@
       else if (k === 'pill' && st.tests[el.dataset.id]) { var due = T.nextDue(st.tests[el.dataset.id]); el.innerHTML = pillText(due); el.classList.toggle('due', !!due && due <= Date.now()); }
     });
     Object.keys(st.tests).forEach(function (id) {
-      var x = st.tests[id]; if (!T.iAmRecorder(x)) return;
+      var x = st.tests[id]; if (!T.iAmRecorder(x) || T.alarm.info.present || !T.alarm.alarmOn(x.test)) return;
       var due = T.nextDue(x); if (!due || due > Date.now()) return;
       var key = id + '|' + due.getTime();
       if (ui.beeped[key] || Date.now() - due > 120000) { ui.beeped[key] = true; return; }
@@ -594,7 +620,9 @@
     pickTemplate: function () { ui.tplSearch = ''; go('new/template'); },
     useTemplate: function (el) { var t = S().templates.find(function (x) { return x.id === el.dataset.id; }); if (t) { applyTemplate(S().newTest, t); T.save(); } go('new'); },
     mode: function (el) { var d = S().newTest; d.mode = d.mode === el.dataset.m ? '' : el.dataset.m; T.save(); render(); },
-    interval: function (el) { var d = S().newTest, step = d.interval_min + Number(el.dataset.d) * (d.interval_min >= 10 && !(d.interval_min === 10 && el.dataset.d === '-1') ? 5 : 1); d.interval_min = Math.max(1, Math.min(240, step)); T.save(); render(); },
+draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm === false; T.save(); render(); },
+    sheetAlarm: function () { ui.sheet.alarm = !ui.sheet.alarm; render(); },
+    alarmPerm: function (el) { T.alarm.request(el.dataset.p); },
     trackComp: function () { var d = S().newTest; d.track_compressor = !d.track_compressor; T.save(); render(); },
     colToggle: function (el) { var c = S().newTest.columns[el.dataset.i]; c.on = c.on === false; T.save(); render(); },
     colEdit: function (el) { var i = Number(el.dataset.i); ui.err = ''; ui.sheet = { name: 'column', where: 'draft', index: i, col: JSON.parse(JSON.stringify(S().newTest.columns[i])) }; render(); },
@@ -641,14 +669,19 @@
     backToTest: function () { ui.edit = null; go('t/' + encodeURIComponent(parts()[1])); },
     toFinish: function () { go('t/' + encodeURIComponent(parts()[1]) + '/finish'); },
     toHandover: function () { ui.hand = null; go('t/' + encodeURIComponent(parts()[1]) + '/handover'); },
-    intervalSheet: function () { ui.sheet = { name: 'interval', value: curTest().test.interval_min || 15 }; render(); },
-    intervalPick: function (el) { ui.sheet.value = Number(el.dataset.m); render(); },
+    intervalSheet: function () { var t = curTest().test; ui.sheet = { name: 'interval', value: t.interval_min || 15, alarm: !(t.setup && t.setup.alarm === false) }; render(); },
+    intervalPick: function (el) { if (el.dataset.w === 'draft') { S().newTest.interval_min = Number(el.dataset.m); T.save(); } else ui.sheet.value = Number(el.dataset.m); render(); },
     intervalSave: function () {
       var b = curTest(), v = Math.round(Number(ui.sheet.value));
       if (!v || v < 1) return toast('Give the minutes. Example: 15', 'bad');
       if (v !== b.test.interval_min) {
         T.act('test.update', { test_id: b.test.test_id, patch: { interval_min: v } });
         T.act('event.add', { event: { event_id: U.uid(), test_id: b.test.test_id, kind: 'interval', time: U.localISO(), text: 'Reading interval changed to ' + v + ' min' } });
+      }
+      var wasOn = !(b.test.setup && b.test.setup.alarm === false);
+      if (wasOn !== ui.sheet.alarm) {
+        T.act('test.update', { test_id: b.test.test_id, patch: { setup: Object.assign({}, b.test.setup, { alarm: ui.sheet.alarm }) } });
+        T.act('event.add', { event: { event_id: U.uid(), test_id: b.test.test_id, kind: 'interval', time: U.localISO(), text: 'Alarm switched ' + (ui.sheet.alarm ? 'ON' : 'OFF') } });
       }
       ui.sheet = null; render();
     },
@@ -738,6 +771,7 @@
       });
     },
     dismissNote: function (el) { S().seenTakeover['note:' + el.dataset.id] = true; T.save(); render(); },
+    torch: function () { T.torch.toggle().then(function (r) { if (r.error) toast(r.error, 'bad'); }); },
     viewPhoto: function (el) { ui.sheet = { name: 'photo', id: el.dataset.photoId }; render(); }
   };
 
@@ -765,7 +799,12 @@
     else if (k === 'colName') ui.sheet.col.name = el.value;
     else if (k === 'colUnit') ui.sheet.col.unit = el.value;
     else if (k === 'colOptions') ui.sheet.col.options = el.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-    else if (k === 'intervalOther') { ui.sheet.value = Number(el.value.replace(/\D/g, '')) || 0; return; }
+    else if (k === 'interval') {
+      var mins = Math.min(1440, Number(el.value.replace(/\D/g, '')) || 0);
+      if (String(mins || '') !== el.value) el.value = mins || '';
+      if (el.dataset.w === 'draft') st.newTest.interval_min = mins; else { ui.sheet.value = mins; return; }
+      root.querySelectorAll('[data-act=intervalPick]').forEach(function (x) { x.setAttribute('aria-checked', String(Number(x.dataset.m) === mins)); });
+    }
     else if (k === 'val') {
       var p = parts(), b = curTest(), col = b.test.columns.find(function (c) { return c.id === el.dataset.c; });
       if (col && col.type === 'number') { var c2 = cleanNumber(el.value); if (c2 !== el.value) el.value = c2; }
@@ -788,6 +827,9 @@
 
   T.on(function (what) {
     if (what === 'expired') { T.signOut(); toast('Please sign in again.', 'bad'); return; }
+    if (String(what).indexOf('alarmOpen:') === 0) { var tid = String(what).slice(10); if (S().current && S().tests[tid]) go('t/' + encodeURIComponent(tid)); return; }
+    if (what === 'torch') { root.querySelectorAll('.torchbtn').forEach(function (x) { x.outerHTML = torchBtn(); }); return; }
+    if (what === 'alarm') { if (!(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render(); return; }
     if (what === 'rejected') toast('1 change was not accepted. Open the sync details.', 'bad');
     if (what === 'photo') { refreshLocalPhotos().then(render); return; }
     if (what === 'sync' || what === 'signin' || what === 'signout') {
@@ -801,9 +843,20 @@
   window.addEventListener('online', render); window.addEventListener('offline', render);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) T.scheduleSync(300); });
 
+  // The Android back gesture, when the app runs inside the alarm app. Returns false when there is nowhere to go back to.
+  window.__appBack = function () {
+    if (ui.sheet) { ui.sheet = null; ui.err = ''; render(); return true; }
+    var p = parts();
+    if (!S() || !S().current || !p.length) return false;
+    if (p[0] === 't' && p.length > 2) go('t/' + encodeURIComponent(p[1]));
+    else if (p[0] === 'new' && p.length > 1) go('new');
+    else go('');
+    return true;
+  };
   T.cfg.phoneCodes = true;
   T.load().then(refreshLocalPhotos).then(function () {
     render();
+    T.alarm.start();
     setInterval(tick, 1000);
     setInterval(function () { T.sync(); }, 60000);
     if (S().current) T.sync();

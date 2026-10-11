@@ -245,3 +245,5 @@ textarea.inp{height:auto;min-height:96px;padding:12px 14px;font-size:17px;line-h
   .dk td,.dk th{padding:4px 6px;font-size:10px}
   .dk .panel,.dk .chart,.dk .tile{break-inside:avoid}
 }
+
+.torchbtn[aria-pressed=true]{background:var(--warn);color:var(--warn-ink)}

@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 1;
+  var BUILD = 3;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -74,7 +74,7 @@
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', trash: '<path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/>',
     excel: '<path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14 2.5V7h5"/><path d="M9 12h7M9 15.5h7M12.5 10.5v8"/>',
     pdf: '<path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14 2.5V7h5"/><path d="M9 13h6M9 16.5h4"/>',
-    download: '<path d="M12 3.5v12"/><path d="M7 11l5 5 5-5"/><path d="M4.5 20.5h15"/>', logout: '<path d="M14 4.5h4.5v15H14"/><path d="M4 12h10"/><path d="M10.5 8.5L14 12l-3.5 3.5"/>'
+    download: '<path d="M12 3.5v12"/><path d="M7 11l5 5 5-5"/><path d="M4.5 20.5h15"/>', torch: '<path d="M8 3h8v3l-2 3v11a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V9L8 6z"/><path d="M8 6h8"/><path d="M12 12v2.5"/>', logout: '<path d="M14 4.5h4.5v15H14"/><path d="M4 12h10"/><path d="M10.5 8.5L14 12l-3.5 3.5"/>'
   };
   function icon(name, size, extra) {
     size = size || 22;
@@ -115,7 +115,7 @@
   function emit(what) { listeners.forEach(function (f) { try { f(what || 'change'); } catch (e) { console.error(e); } }); }
   function fresh() {
     return { v: 1, phone: '', users: {}, current: '', lastUser: '', people: [], products: [], templates: [], phones: [], tests: {},
-      outbox: [], failed: [], since: '', counters: {}, drafts: {}, newTest: null, recentTemplates: [], seenTakeover: {} };
+      outbox: [], failed: [], since: '', counters: {}, drafts: {}, newTest: null, recentTemplates: [], seenTakeover: {}, alarmSkip: {}, alarmArmed: {} };
   }
   var saveTimer = null;
   function save() {

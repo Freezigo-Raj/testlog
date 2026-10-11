@@ -109,9 +109,8 @@
     var mine = running.filter(function (b) { return b.test.current_recorder === st.current; }), others = running.filter(function (b) { return b.test.current_recorder !== st.current; });
     var finished = all.filter(function (b) { return b.test.status === 'finished'; }).sort(function (a, b) { return (b.test.ended_at || '').localeCompare(a.test.ended_at || ''); });
     var shown = ui.allFinished ? finished : finished.slice(0, 3);
-    var h = '<header class="hdr" style="padding-bottom:4px"><div class="between">' + brand() + '<span class="row" style="gap:4px"><button type="button" class="iconbtn" data-act="settings" aria-label="Settings">' + icon('settings', 26) + '</button>' + syncBadge() + '</span></div>' +
-      '<div class="between"><span class="muted" style="font-size:15px">Signed in as <strong style="color:var(--ink)">' + esc(T.me().name) + '</strong></span>' +
-      '<button type="button" class="quiet" data-act="changeUser">' + icon('swap', 18) + 'Change user</button></div></header>';
+    var h = '<header class="hdr" style="padding-bottom:4px"><div class="between">' + brand() + '<span class="row" style="gap:4px">' + syncBadge() + '<button type="button" class="iconbtn" style="margin-right:-6px" data-act="settings" aria-label="Settings">' + icon('more', 26) + '</button></span></div>' +
+      '<div class="between" style="min-height:36px"><span class="muted" style="font-size:15px">Signed in as <strong style="color:var(--ink)">' + esc(T.me().name) + '</strong></span></div></header>';
     h += '<main class="scroll" style="gap:18px"><button type="button" class="btn large" data-act="startNew">' + icon('plus', 28) + 'Start new test</button>';
     if (st.newTest) h += '<button type="button" class="card" data-act="resumeNew"><div class="between"><span class="num" style="font-size:17px;font-weight:700">' + esc(st.newTest.test_id) + '</span><span class="pill">Not started</span></div></button>';
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">My tests</h2><span class="num muted" style="font-size:17px;font-weight:700">' + mine.length + '</span></div>';
@@ -124,7 +123,7 @@
       var t = b.test;
       return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="num" style="font-size:18px;font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div style="font-size:16px;font-weight:700">' + esc(t.template_name) + '</div><div class="muted" style="font-size:14px">' + esc(t.product) + ' · ' + b.readings.length + ' readings</div></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
     }).join('') : '<div class="empty">' + icon('lock', 32) + '<b>No finished tests yet</b></div>';
-    h += '</section><button type="button" class="btn second" data-act="settings">' + icon('settings') + 'Settings</button><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
+    h += '</section><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
     return h;
   }
 
@@ -132,13 +131,14 @@
   function applyTemplate(draft, tpl) {
     draft.template_id = tpl.id; draft.template_name = tpl.name; draft.product = tpl.product; draft.mode = tpl.default_mode || '';
     draft.track_compressor = !!tpl.track_compressor;
-    draft.columns = JSON.parse(JSON.stringify(tpl.columns || []));
+    draft.columns = JSON.parse(JSON.stringify(T.readingColumns(tpl.columns)));
+    draft.setup_fields = JSON.parse(JSON.stringify(T.setupFields(tpl.columns, tpl.product)));
   }
   function ensureDraft() {
     var st = S();
     if (st.newTest) return st.newTest;
     var d = { test_id: T.newTestId(), template_id: '', template_name: '', product: '', machine_code: '', mode: '', date: U.localISO().slice(0, 10), interval_min: 15, track_compressor: false,
-      setup: { refrigerant_qty: '', ts_water: '', bmc_water: '', notes: '' }, columns: [] };
+      setup: { notes: '' }, columns: [], setup_fields: [] };
     var tpl = st.templates.find(function (t) { return t.id === st.recentTemplates[0]; }) || st.templates[0];
     if (tpl) applyTemplate(d, tpl);
     st.newTest = d; T.save();
@@ -150,8 +150,19 @@
   function stepBar(n) {
     return '<nav class="stepbar" aria-label="Steps"><div class="' + (n === 1 ? 'on' : '') + '"><i></i><span>1 · Setup</span></div><div class="' + (n === 2 ? 'on' : '') + '"><i></i><span>2 · Columns</span></div></nav>';
   }
-  function numField(label, key, unit, val) {
-    return '<div class="field"><label for="f-' + key + '" style="line-height:1.2">' + label + '</label><div class="unitwrap"><input id="f-' + key + '" class="inp mono" inputmode="decimal" data-in="setup" data-k="' + key + '" value="' + esc(val) + '"><span>' + unit + '</span></div></div>';
+  /** The inputs for the setup fields of a template. `kind` is 'setup' for a new test and 'se' when changing a running test. */
+  function setupInputs(fields, vals, kind) {
+    var nums = fields.filter(function (f) { return f.type === 'number'; }), rest = fields.filter(function (f) { return f.type !== 'number'; });
+    var h = nums.length ? '<div class="grid2" style="gap:16px 10px;align-items:end">' + nums.map(function (f) {
+      return '<div class="field"><label for="sf-' + esc(f.id) + '" style="line-height:1.2">' + esc(f.name) + '</label><div class="unitwrap"><input id="sf-' + esc(f.id) + '" class="inp mono" inputmode="decimal" data-in="' + kind + '" data-k="' + esc(f.id) + '" value="' + esc(vals[f.id] || '') + '"><span>' + esc(f.unit || '') + '</span></div></div>';
+    }).join('') + '</div>' : '';
+    return h + rest.map(function (f) {
+      if (f.type === 'text') return field(esc(f.name), '<input class="inp" id="sf-' + esc(f.id) + '" data-in="' + kind + '" data-k="' + esc(f.id) + '" value="' + esc(vals[f.id] || '') + '">');
+      var options = f.type === 'yesno' ? ['Yes', 'No'] : (f.options || []);
+      return '<div class="field"><span class="lbl">' + esc(f.name) + '</span><div class="row" style="flex-wrap:wrap;gap:6px" role="radiogroup">' + options.map(function (o) {
+        return '<button type="button" role="radio" class="opt" style="flex:1" aria-checked="' + (vals[f.id] === o) + '" data-act="setupPick" data-w="' + kind + '" data-k="' + esc(f.id) + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
+      }).join('') + '</div></div>';
+    }).join('');
   }
   function photoRow(testId, readingId, readingNo, canAdd) {
     var b = S().tests[testId] || { test_id: testId, photos: [] }, list = photosOf(b, readingId);
@@ -184,8 +195,7 @@
       }).join('') + '</div></div>';
     }
     h += field('Date', '<input class="inp mono" type="date" data-in="draft" data-k="date" value="' + esc(d.date) + '">');
-    h += '<div class="grid2" style="gap:16px 10px;align-items:end">' + numField('Refrigerant quantity', 'refrigerant_qty', 'kg', d.setup.refrigerant_qty) + numField('TS DM water', 'ts_water', 'L', d.setup.ts_water) + numField('BMC water', 'bmc_water', 'L', d.setup.bmc_water) +
-      '</div>';
+    h += setupInputs(d.setup_fields || [], d.setup, 'setup');
     h += intervalField(d.interval_min, 'draft') + alarmRow(d.setup.alarm !== false, 'draftAlarm');
     h += field('Notes', '<textarea class="inp" rows="3" data-in="setup" data-k="notes">' + esc(d.setup.notes) + '</textarea>');
     h += '<div class="field"><span class="lbl">Photos</span>' + photoRow(d.test_id, '', '', true) + '</div>';
@@ -204,12 +214,12 @@
     var h = setupHeader(d, 'Pick template', 'toSetup') + '<main class="scroll" style="padding:14px 16px 20px;gap:18px">';
     h += '<div class="unitwrap"><input class="inp" data-in="tplSearch" placeholder="Search templates" value="' + esc(ui.tplSearch) + '"></div>';
     var recent = st.recentTemplates.map(function (id) { return st.templates.find(function (t) { return t.id === id; }); }).filter(Boolean).slice(0, 3);
-    if (recent.length && !q) h += '<section class="col" style="gap:8px"><h2 class="h-caps">Recent</h2>' + recent.map(function (t) { return row(t, esc(t.product) + ' · ' + t.columns.length + ' columns'); }).join('') + '</section>';
+    if (recent.length && !q) h += '<section class="col" style="gap:8px"><h2 class="h-caps">Recent</h2>' + recent.map(function (t) { return row(t, esc(t.product) + ' · ' + T.readingColumns(t.columns).length + ' columns'); }).join('') + '</section>';
     var groups = {};
     list.forEach(function (t) { (groups[t.product] = groups[t.product] || []).push(t); });
     var names = st.products.map(function (p) { return p.id; }).concat(Object.keys(groups)).filter(function (x, i, a) { return a.indexOf(x) === i && groups[x]; });
     names.forEach(function (g) {
-      h += '<section class="col" style="gap:8px"><h2 class="h-caps between"><span>' + esc(g || 'No product') + '</span><span class="num">' + groups[g].length + '</span></h2>' + groups[g].map(function (t) { return row(t, t.columns.length + ' columns'); }).join('') + '</section>';
+      h += '<section class="col" style="gap:8px"><h2 class="h-caps between"><span>' + esc(g || 'No product') + '</span><span class="num">' + groups[g].length + '</span></h2>' + groups[g].map(function (t) { return row(t, T.readingColumns(t.columns).length + ' columns'); }).join('') + '</section>';
     });
     if (!list.length) h += '<div class="empty">' + icon('search', 32) + '<b>No template found</b></div>';
     return h + '</main>';
@@ -364,7 +374,11 @@
       var en = T.energy(b), comp = t.comp_on_min !== null && t.comp_on_min !== undefined ? t.comp_on_min : T.compressor(b).totalMin;
       h += '<div class="banner">' + icon('lock') + '<span><b>Finished and locked</b><br>' + esc(U.dmyhm(t.started_at)) + ' → ' + esc(U.hhmm(t.ended_at)) + '. Nobody can change this test.</span></div>';
       h += '<div class="grid2">' + stat('Total time', elapsedText(b)) + stat('Readings', b.readings.length) + (en && en.total !== null ? stat('Total energy', en.total.toFixed(2) + ' kWh') : '') + (t.track_compressor ? stat('Compressor on-time', U.dur(comp)) : '') + '</div>';
-      if (t.final_remarks) h += '<div class="tip" style="display:block"><strong style="color:var(--ink)">Final remarks</strong><br>' + esc(t.final_remarks) + '</div>';
+      var extra = b.notes.filter(function (n) { return !n.reading_id; }).sort(function (x, y) { return (x.at || '').localeCompare(y.at || ''); });
+      h += '<section class="col" style="gap:8px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">Notes</h2>' +
+        (t.final_remarks ? '<div class="col" style="gap:2px"><span class="muted" style="font-size:13px;font-weight:700">Final remarks · <span class="num">' + esc(U.dmhm(t.ended_at)) + '</span></span><span style="white-space:pre-wrap">' + esc(t.final_remarks) + '</span></div>' : '') +
+        extra.map(function (n) { return '<div class="col" style="gap:2px;border-top:1px solid var(--line);padding-top:8px"><span class="muted" style="font-size:13px;font-weight:700">' + esc(T.personName(n.by)) + ' · <span class="num">' + esc(U.dmhm(n.at)) + '</span></span><span style="white-space:pre-wrap">' + esc(n.text) + '</span></div>'; }).join('') +
+        '<textarea class="inp" rows="2" id="add-note" data-in="addNote" aria-label="New note">' + esc(ui.addNote || '') + '</textarea><button type="button" class="btn second" data-act="addNote">' + icon('plus') + 'Add note</button></section>';
     } else {
       var took = b.events.filter(function (e) { return (e.kind === 'takeover' || e.kind === 'handover') && e.data; }).pop();
       if (took && took.kind === 'takeover' && took.data.from === st.current) h += '<div class="banner">' + icon('swap') + '<span><b>' + esc(who) + ' took over at ' + esc(U.hhmm(took.time)) + '</b><br>Recorder: ' + esc(who) + '. You can only view this test now.</span></div>';
@@ -449,7 +463,7 @@
     if (s.name === 'column') return columnSheet();
     if (s.name === 'password') return '';
     if (s.name === 'menu') {
-      return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toSetupEdit">' + icon('pencil', 24) + '<span class="grow">Change setup</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
+      return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toSetupEdit">' + icon('pencil', 24) + '<span class="grow">Change setup</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="settings">' + icon('settings', 24) + '<span class="grow">Settings</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
     }
     if (s.name === 'interval') {
       var cur = s.value, last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, b.test.started_at || ''), next = cur ? new Date(U.toDate(last).getTime() + cur * 60000) : null;
@@ -513,22 +527,27 @@
     h += box('Alarm', alarmPanel());
     h += box('Display', '<div class="between" style="min-height:48px"><span style="font-size:17px;font-weight:700">Dark theme</span>' + switchBtn(st.theme === 'dark', 'theme', '', 'Dark theme') + '</div>');
     h += box('Computer', '<a class="btn second" href="desk.html">Open computer view' + icon('chevron') + '</a>');
-    return h + '<p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + (T.alarm.info.present ? ' · Alarm shell ' + T.alarm.info.shellBuild : '') + '</p></main>';
+    var line = function (k, v) { return '<div class="between" style="min-height:40px"><span style="font-size:17px">' + k + '</span><strong class="num" style="font-size:18px">' + v + '</strong></div>'; };
+    h += box('Build numbers', line('App build', T.BUILD) + line('Alarm app build', T.alarm.info.present ? T.alarm.info.shellBuild : 'Not installed') + line('Phone code', esc(st.phone || '?')));
+    return h + '</main>';
   }
 
   /* ---------- change setup during a test ---------- */
-  var SETUP_FIELDS = [['machine_code', 'Machine code'], ['mode', 'Machine mode'], ['refrigerant_qty', 'Refrigerant quantity'], ['ts_water', 'TS DM water'], ['bmc_water', 'BMC water'], ['notes', 'Notes']];
-  function setupOf(t) { var x = t.setup || {}; return { machine_code: t.machine_code || '', mode: t.mode || '', refrigerant_qty: x.refrigerant_qty || '', ts_water: x.ts_water || '', bmc_water: x.bmc_water || '', notes: x.notes || '' }; }
+  function setupList(t) { return [{ id: 'machine_code', name: 'Machine code' }, { id: 'mode', name: 'Machine mode' }].concat(T.setupFields(t.columns, t.product)).concat([{ id: 'notes', name: 'Notes' }]); }
+  function setupOf(t) {
+    var x = t.setup || {}, o = { machine_code: t.machine_code || '', mode: t.mode || '', notes: x.notes || '' };
+    T.setupFields(t.columns, t.product).forEach(function (f) { o[f.id] = x[f.id] || ''; });
+    return o;
+  }
   function editSetupScreen(b) {
     var t = b.test, e = ui.setupEdit || (ui.setupEdit = setupOf(t)), pr = product(t.product);
-    var numF = function (label, key, unit) { return '<div class="field"><label for="se-' + key + '" style="line-height:1.2">' + label + '</label><div class="unitwrap"><input id="se-' + key + '" class="inp mono" inputmode="decimal" data-in="se" data-k="' + key + '" value="' + esc(e[key]) + '"><span>' + unit + '</span></div></div>'; };
     var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Change setup</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
     h += field('Machine code', '<input class="inp mono" id="se-machine_code" data-in="se" data-k="machine_code" autocapitalize="characters" value="' + esc(e.machine_code) + '">');
     if (pr.modes.length || e.mode) h += '<div class="field"><span class="lbl">Machine mode</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.concat(e.mode && pr.modes.indexOf(e.mode) < 0 ? [e.mode] : []).map(function (m) {
       var on = e.mode === m;
       return '<button type="button" class="radio" role="radio" aria-checked="' + on + '" data-act="seMode" data-m="' + esc(m) + '">' + (on ? icon('check', 22) : '') + '<span class="grow">' + esc(m) + '</span></button>';
     }).join('') + '</div></div>';
-    h += '<div class="grid2" style="gap:16px 10px;align-items:end">' + numF('Refrigerant quantity', 'refrigerant_qty', 'kg') + numF('TS DM water', 'ts_water', 'L') + numF('BMC water', 'bmc_water', 'L') + '</div>';
+    h += setupInputs(T.setupFields(t.columns, t.product), e, 'se');
     h += field('Notes', '<textarea class="inp" rows="3" id="se-notes" data-in="se" data-k="notes">' + esc(e.notes) + '</textarea>');
     h += '<div class="field"><span class="lbl">Photos</span>' + photoRow(t.test_id, '', '', true) + '</div>';
     h += '<button type="button" class="btn second" data-act="intervalSheet">' + icon('timer') + 'Reading interval and alarm</button>';
@@ -679,6 +698,7 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       var st = S(), d = st.newTest;
       if (!d.columns.some(function (c) { return c.on !== false; })) return toast('Add or switch on 1 column first.', 'bad');
       var test = JSON.parse(JSON.stringify(d));
+      test.columns = test.columns.concat(test.setup_fields || []); delete test.setup_fields;
       test.started_at = U.localISO();
       T.act('test.create', { test: test });
       if (d.template_id) st.recentTemplates = [d.template_id].concat(st.recentTemplates.filter(function (x) { return x !== d.template_id; })).slice(0, 5);
@@ -691,12 +711,14 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     toFinish: function () { go('t/' + encodeURIComponent(parts()[1]) + '/finish'); },
     settings: function () { T.alarm.refresh().then(function () { if (parts()[0] === 'settings') render(); }); go('settings'); },
     toSetupEdit: function () { ui.setupEdit = null; go('t/' + encodeURIComponent(parts()[1]) + '/setup'); },
+    setupPick: function (el) { var o = el.dataset.w === 'se' ? ui.setupEdit : S().newTest.setup; o[el.dataset.k] = o[el.dataset.k] === el.dataset.v ? '' : el.dataset.v; T.save(); render(); },
     seMode: function (el) { ui.setupEdit.mode = ui.setupEdit.mode === el.dataset.m ? '' : el.dataset.m; render(); },
     saveSetup: function () {
       var b = curTest(), t = b.test, e = ui.setupEdit, old = setupOf(t), changed = [];
-      SETUP_FIELDS.forEach(function (f) { e[f[0]] = String(e[f[0]] || '').trim(); if (e[f[0]] !== old[f[0]]) changed.push(f[1] + ': ' + (old[f[0]] || 'blank') + ' → ' + (e[f[0]] || 'blank')); });
+      var vals = {};
+      setupList(t).forEach(function (f) { e[f.id] = String(e[f.id] || '').trim(); if (f.id !== 'machine_code' && f.id !== 'mode') vals[f.id] = e[f.id]; if (e[f.id] !== old[f.id]) changed.push(f.name + ': ' + (old[f.id] || 'blank') + ' → ' + (e[f.id] || 'blank')); });
       if (changed.length) {
-        T.act('test.update', { test_id: t.test_id, patch: { machine_code: e.machine_code, mode: e.mode, setup: Object.assign({}, t.setup, { refrigerant_qty: e.refrigerant_qty, ts_water: e.ts_water, bmc_water: e.bmc_water, notes: e.notes }) } });
+        T.act('test.update', { test_id: t.test_id, patch: { machine_code: e.machine_code, mode: e.mode, setup: Object.assign({}, t.setup, vals) } });
         T.act('event.add', { event: { event_id: U.uid(), test_id: t.test_id, kind: 'setup', time: U.localISO(), text: 'Setup changed. ' + changed.join('; ') } });
       }
       ui.setupEdit = null; go('t/' + encodeURIComponent(t.test_id));
@@ -804,6 +826,12 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
         ui.sheet = null; toast('You are the recorder now.');
       });
     },
+    addNote: function () {
+      var b = curTest(), text = (ui.addNote || '').trim();
+      if (!text) return toast('Write the note first.', 'bad');
+      T.act('note.add', { note: { note_id: U.uid(), test_id: b.test.test_id, reading_id: '', text: text } });
+      ui.addNote = ''; toast('Note added.');
+    },
     dismissNote: function (el) { S().seenTakeover['note:' + el.dataset.id] = true; T.save(); render(); },
     torch: function () { T.torch.toggle().then(function (r) { if (r.error) toast(r.error, 'bad'); }); },
     viewPhoto: function (el) { ui.sheet = { name: 'photo', id: el.dataset.photoId }; render(); }
@@ -848,6 +876,7 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     else if (k === 'se') { if (el.inputMode === 'decimal') el.value = cleanNumber(el.value); ui.setupEdit[el.dataset.k] = el.value; return; }
     else if (k === 'note') draftOf(curTest()).note = el.value;
     else if (k === 'editNote') ui.edit.note = el.value;
+    else if (k === 'addNote') { ui.addNote = el.value; return; }
     else if (k === 'remarks') finishDraft(curTest()).remarks = el.value;
     else if (k === 'handNote') ui.hand.note = el.value;
     T.save();

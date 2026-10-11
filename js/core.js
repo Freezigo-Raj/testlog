@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 4;
+  var BUILD = 5;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -206,7 +206,17 @@
     state.counters = {}; state.counters[key] = n;
     return 'T-' + key + '-' + (state.phone || 'XX') + '-' + pad(n);
   }
-  function activeColumns(test) { return (test.columns || []).filter(function (c) { return c.on !== false; }); }
+  // A template holds two kinds of column. Reading columns are filled at every reading.
+  // Setup fields (scope "setup") are filled once, at the start of the test.
+  var LEGACY_SETUP = [{ id: 'refrigerant_qty', name: 'Refrigerant quantity', type: 'number', unit: 'kg', scope: 'setup' },
+    { id: 'ts_water', name: 'TS DM water', type: 'number', unit: 'L', scope: 'setup' }, { id: 'bmc_water', name: 'BMC water', type: 'number', unit: 'L', scope: 'setup' }];
+  function readingColumns(columns) { return (columns || []).filter(function (c) { return c.scope !== 'setup'; }); }
+  function setupFields(columns, product) {
+    var f = (columns || []).filter(function (c) { return c.scope === 'setup'; });
+    // Templates made before setup fields existed: the BMC ones keep the three fields they always had.
+    return f.length ? f : (product === 'BMC cooling' ? LEGACY_SETUP : []);
+  }
+  function activeColumns(test) { return readingColumns(test.columns).filter(function (c) { return c.on !== false; }); }
   function sortedReadings(b) {
     return b.readings.slice().sort(function (x, y) { return x.no - y.no || (x.saved_at || '').localeCompare(y.saved_at || ''); });
   }
@@ -236,7 +246,7 @@
     return { on: on, since: since, totalMin: total, periods: periods, taps: evs.length, known: evs.length > 0 };
   }
   function energy(b) {
-    var col = (b.test.columns || []).find(function (c) { return c.type === 'number' && /kwh/i.test(c.unit || ''); });
+    var col = readingColumns(b.test.columns).find(function (c) { return c.type === 'number' && /kwh/i.test(c.unit || ''); });
     if (!col) return null;
     var vals = usedReadings(b).map(function (r) { return num(r.values[col.id]); }).filter(function (v) { return v !== null; });
     if (vals.length < 2) return { col: col, first: vals[0], last: vals[0], total: null };
@@ -473,7 +483,7 @@
     on: function (f) { listeners.push(f); }, emit: emit, load: load, save: save, me: me, personName: personName,
     api: api, signIn: signIn, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
     act: act, sync: sync, scheduleSync: scheduleSync, pushNow: pushNow, syncState: syncState, waitingCount: waitingCount, pendingReadingIds: pendingReadingIds,
-    newTestId: newTestId, activeColumns: activeColumns, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
+    newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
     compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder,
     addPhoto: addPhoto, photoSrc: photoSrc, testPhotos: testPhotos, photosDb: photosDb,
     u: { pad: pad, localISO: localISO, toDate: toDate, hhmm: hhmm, dmy: dmy, dm: dm, dmhm: dmhm, dmyhm: dmyhm, minsBetween: minsBetween, dur: dur, hm: hm, uid: uid, esc: esc, initials: initials, num: num, icon: icon }

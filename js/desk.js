@@ -26,7 +26,7 @@
     var p = parts();
     ui.err = ''; ui.pop = null;
     if (p[0] === 't' && p[1]) {
-      if (!D.bundle || D.bundle.test.test_id !== p[1]) { D.bundle = null; ui.series = null; ui.statCol = ''; ui.openNotes = {}; ui.exportOpen = false; }
+      if (!D.bundle || D.bundle.test.test_id !== p[1]) { D.bundle = null; ui.series = null; ui.statCol = ''; ui.openNotes = {}; ui.exportOpen = false; ui.delOpen = false; }
       render();
       var base = D.tests ? Promise.resolve() : call('listTests').then(setList);
       return base.then(function () { return call('getTest', { test_id: p[1] }); }).then(function (r) { D.bundle = r.bundle; render(); }, fail);
@@ -161,7 +161,8 @@
 
     var h = '<a class="dbtn sm noprint" href="#/tests" style="align-self:flex-start">' + icon('back', 16) + 'All tests</a>';
     h += '<section class="between" style="flex-wrap:wrap;align-items:flex-start"><div class="col" style="gap:6px"><div class="row" style="flex-wrap:wrap"><h1 class="num" style="font-size:34px">' + esc(t.test_id) + '</h1>' + (T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished · Locked</span>' : '<span class="status run">Running</span>') + (toCheck.length ? '<span class="status check">' + icon('warn', 14) + toCheck.length + ' reading to check</span>' : '') + '</div><strong style="font-size:17px">' + esc(t.product) + ' · ' + esc(t.template_name) + '</strong><span class="muted">Machine <strong class="num" style="color:var(--ink)">' + esc(t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(t.mode || '-') + '</strong> · Recorders <strong style="color:var(--ink)">' + esc(Object.keys(recorders).map(name).join(', ') || name(t.created_by)) + '</strong> · <span class="num">' + esc(U.dmyhm(t.started_at)) + ' → ' + (t.ended_at ? esc(U.hhmm(t.ended_at)) : 'running') + '</span></span></div>' +
-      '<div class="row noprint"><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button><button type="button" class="dbtn primary" data-act="exportToggle">' + icon('excel', 18) + 'Export to Excel</button><button type="button" class="dbtn" data-act="pdf">' + icon('pdf', 18) + 'Export PDF</button></div></section>';
+      '<div class="row noprint"><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button><button type="button" class="dbtn primary" data-act="exportToggle">' + icon('excel', 18) + 'Export to Excel</button>' + (!T.isDeleted(t) && (reviewer() || recorders[S().current] || t.created_by === S().current) ? '<button type="button" class="dbtn" data-act="delToggle">' + icon('trash', 18) + 'Delete test</button>' : '') + '<button type="button" class="dbtn" data-act="pdf">' + icon('pdf', 18) + 'Export PDF</button></div></section>';
+    if (ui.delOpen) h += '<section class="panel noprint" style="border-color:var(--bad)"><h2 style="font-size:16px">Delete this test?</h2><span class="muted" style="font-size:13px">The test is locked and hidden from the lists. The data stays in the Google Sheet. It shows under Status, Deleted.</span><label class="col" style="gap:4px;font-weight:800;font-size:13px">Reason<textarea class="din" id="del-reason" placeholder="Example: Wrong machine was connected."></textarea></label><div class="row"><button type="button" class="dbtn bad" data-act="delDo"' + (ui.busy ? ' disabled' : '') + '>' + icon('trash', 16) + 'Yes, delete test</button><button type="button" class="dbtn" data-act="delToggle">No, go back</button></div></section>';
     if (ui.exportOpen) {
       var items = [['Setup', 'Machine, mode, water, interval, setup notes'], ['Readings', 'One row for each reading. Time from start in hours, Recorded by, recorder note, reviewer note'], ['Edits', 'Every changed value: old value, new value, who, when'], ['Notes', 'Recorder notes and reviewer notes'], ['Events', 'Handovers and compressor ON/OFF taps'], ['Photos', 'One row for each photo with a link to the file in Google Drive']];
       h += '<section class="panel noprint"><div class="between"><div><h2 style="font-size:16px">What the Excel file contains</h2><span class="muted" style="font-size:13px">File <strong class="num">' + esc(t.test_id) + '.xlsx</strong> · one sheet for each part · every sheet is an Excel table with filters</span></div><div class="row"><button type="button" class="dbtn sm" data-act="exportToggle">Close</button><button type="button" class="dbtn primary" data-act="excel">' + icon('download', 18) + 'Download Excel</button></div></div><ol style="margin:0;padding-left:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 28px">' + items.map(function (x) { return '<li><strong>' + x[0] + '</strong><br><span class="muted" style="font-size:13px">' + x[1] + '</span></li>'; }).join('') + '</ol></section>';
@@ -359,6 +360,14 @@
     clearFilters: function () { ui.filters = {}; ui.page = 0; render(); },
     page: function (el) { ui.page += Number(el.dataset.d); render(); window.scrollTo(0, 0); },
     openTest: function (el) { go('t/' + encodeURIComponent(el.dataset.id)); },
+    delToggle: function () { ui.delOpen = !ui.delOpen; render(); },
+    delDo: function () {
+      var reason = document.getElementById('del-reason').value.trim(), now = U.localISO();
+      if (!reason) { ui.err = 'Write the reason first.'; return render(); }
+      push('test.delete', { test_id: D.bundle.test.test_id, reason: reason, time: now, event_id: U.uid() }).then(function () { ui.delOpen = false; ui.msg = 'Test deleted. It shows under Status, Deleted.'; D.tests = null; D.bundle = null; go('tests'); }, function () {
+        if (/Unknown change/.test(ui.err)) { ui.err = 'The Google script is old. Update it first, then delete.'; render(); }
+      });
+    },
     exportToggle: function () { ui.exportOpen = !ui.exportOpen; render(); },
     excel: function () { exportExcel().catch(function (e) { ui.err = 'Excel export failed. ' + e.message; render(); }); },
     pdf: function () { ui.printing = true; render(); setTimeout(function () { window.print(); ui.printing = false; render(); }, 400); },

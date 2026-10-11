@@ -397,7 +397,13 @@
     h += b.readings.length || b.events.length ? readingTable(b) : '<div class="empty">' + icon('list', 32) + '<b>No readings yet</b></div>';
     h += '</main>';
     if (!finished) h += '<footer class="foot"><button type="button" class="btn" data-act="takeOver">' + icon('hand') + 'Take over</button></footer>';
+    else if (canDelete(b)) h += '<footer class="foot"><button type="button" class="btn second" style="color:var(--bad-text);border-color:var(--bad)" data-act="deleteSheet">' + icon('trash') + 'Delete test</button></footer>';
     return h;
+  }
+  /** A finished test can be deleted by a person who recorded on it, and by a reviewer. */
+  function canDelete(b) {
+    var me = S().current, t = b.test;
+    return (T.me() || {}).role === 'reviewer' || t.created_by === me || t.current_recorder === me || b.readings.some(function (r) { return r.by === me; });
   }
   function stat(k, v, small) { return '<div class="stat"><span class="k">' + k + '</span><span class="v num">' + v + '</span>' + (small ? '<small>' + small + '</small>' : '') + '</div>'; }
 
@@ -790,6 +796,20 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     doDelete: function () {
       var b = curTest(), st = S(), id = b.test.test_id, n = b.readings.length, reason = n ? (ui.sheet.reason || '').trim() : 'No readings';
       if (!reason) return toast('Write the reason first.', 'bad');
+      if (b.test.status === 'finished') {
+        // A finished test is already in the Google Sheet, so it is deleted there, now. This needs internet.
+        if (!navigator.onLine) return toast('No internet. A finished test is deleted on the server.', 'bad');
+        if (ui.busy) return;
+        ui.busy = true;
+        T.pushNow('test.delete', { test_id: id, reason: reason, time: U.localISO(), event_id: U.uid() }).then(function () {
+          b.test.final_remarks = '[DELETED] ' + reason; T.save();
+          ui.busy = false; go(''); toast('Test deleted.'); T.sync();
+        }, function (e) {
+          ui.busy = false;
+          toast(/Unknown change/.test(e.message) ? 'The Google script is old. Update it first, then delete.' : e.message, 'bad');
+        });
+        return;
+      }
       var opId = function (o) { var q = o.payload; return q.test_id || (q.test && q.test.test_id) || (q.reading && q.reading.test_id) || (q.event && q.event.test_id) || (q.note && q.note.test_id); };
       var neverSent = !T.live.syncing && st.outbox.some(function (o) { return o.type === 'test.create' && o.payload.test.test_id === id; });
       if (neverSent) {

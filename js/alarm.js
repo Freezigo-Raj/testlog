@@ -109,5 +109,7 @@
       refresh().then(function () { T.emit('alarm'); });
     });
   }
-  T.alarm = { RING: RING, info: info, plugin: plugin, alarmOn: alarmOn, slot: slot, desired: desired, sync: sync, refresh: refresh, request: request, start: start, outcome: outcome };
+  // The newest alarm app. Raise this when a new testlog-alarm.apk is put on the site.
+  var LATEST_SHELL = 3;
+  T.alarm = { LATEST_SHELL: LATEST_SHELL, RING: RING, info: info, plugin: plugin, alarmOn: alarmOn, slot: slot, desired: desired, sync: sync, refresh: refresh, request: request, start: start, outcome: outcome };
 })();

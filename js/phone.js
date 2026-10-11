@@ -52,21 +52,20 @@
     if (!T.cfg.api) {
       body = '<div class="banner bad">' + icon('warn') + '<span><b>App is not connected</b><br>The link to the Google Sheet is missing. Ask your manager.</span></div>';
     } else if (ui.serverUsers === false) {
-      body = '<div><h1 style="font-size:28px;font-weight:800;line-height:1.1">First-time setup</h1><p class="muted" style="margin-top:8px">Make the first user. This user is the manager and can add other people.</p></div>' +
-        field('Your name', '<input class="inp" id="su-name" placeholder="Example: Vishal" autocomplete="name">') +
-        field('Username', '<input class="inp" id="su-user" placeholder="Example: vishal" autocapitalize="none" autocomplete="username">') +
+      body = '<div><h1 style="font-size:28px;font-weight:800;line-height:1.1">First-time setup</h1></div>' +
+        field('Your name', '<input class="inp" id="su-name" autocomplete="name">') +
+        field('Username', '<input class="inp" id="su-user" autocapitalize="none" autocomplete="username">') +
         field('Password (6 or more letters)', '<input class="inp" id="su-pass" type="password" autocomplete="new-password">') +
         (ui.err ? '<p class="err">' + esc(ui.err) + '</p>' : '') +
         '<button type="button" class="btn" data-act="setupAdmin"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Create user and sign in</button>';
     } else {
-      body = '<div><h1 style="font-size:30px;font-weight:800;line-height:1.1">Who are you?</h1><p style="margin-top:8px;font-size:18px" class="muted">Tap your name. Then type your password.</p></div>';
+      body = '<div><h1 style="font-size:30px;font-weight:800;line-height:1.1">Who are you?</h1></div>';
       if (last) body += '<section class="col" style="gap:8px"><h2 class="h-caps">Last used on this phone</h2><button type="button" class="person last" data-act="pickUser" data-u="' + esc(last.username) + '">' + avatar(last.name) + '<span class="grow">' + esc(last.name) + '</span>' + icon('chevron', 26) + '</button></section>';
       var others = list.filter(function (p) { return !last || p.username !== last.username; });
       if (others.length) body += '<section class="col" style="gap:8px"><h2 class="h-caps">All names</h2><div class="grid2">' + others.map(function (p) {
         return '<button type="button" class="person" data-act="pickUser" data-u="' + esc(p.username) + '">' + avatar(p.name) + '<span>' + esc(p.name) + '</span></button>';
       }).join('') + '</div></section>';
-      if (!list.length) body += '<div class="empty">' + (navigator.onLine ? spin() + '<b>Loading names…</b>' : icon('cloudOff', 32) + '<b>No internet</b>Connect to the internet for the first sign in.') + '</div>';
-      body += '<p class="tip">' + icon('info') + '<span>Your name is not here? Ask your manager to add it on the computer.</span></p>';
+      if (!list.length) body += '<div class="empty">' + (navigator.onLine ? spin() + '<b>Loading names…</b>' : icon('cloudOff', 32) + '<b>No internet</b>') + '</div>';
     }
     return '<header class="hdr"><div class="between">' + brand() + '</div></header><main class="scroll" style="padding-top:22px;gap:20px">' + body +
       '<p class="build">Build ' + T.BUILD + (st.phone ? ' · Phone ' + esc(st.phone) : '') + '</p></main>' + (ui.sheet && ui.sheet.name === 'password' ? passwordSheet() : '');
@@ -110,23 +109,22 @@
     var mine = running.filter(function (b) { return b.test.current_recorder === st.current; }), others = running.filter(function (b) { return b.test.current_recorder !== st.current; });
     var finished = all.filter(function (b) { return b.test.status === 'finished'; }).sort(function (a, b) { return (b.test.ended_at || '').localeCompare(a.test.ended_at || ''); });
     var shown = ui.allFinished ? finished : finished.slice(0, 3);
-    var h = '<header class="hdr" style="padding-bottom:4px"><div class="between">' + brand() + syncBadge() + '</div>' +
+    var h = '<header class="hdr" style="padding-bottom:4px"><div class="between">' + brand() + '<span class="row" style="gap:4px"><button type="button" class="iconbtn" data-act="settings" aria-label="Settings">' + icon('settings', 26) + '</button>' + syncBadge() + '</span></div>' +
       '<div class="between"><span class="muted" style="font-size:15px">Signed in as <strong style="color:var(--ink)">' + esc(T.me().name) + '</strong></span>' +
       '<button type="button" class="quiet" data-act="changeUser">' + icon('swap', 18) + 'Change user</button></div></header>';
     h += '<main class="scroll" style="gap:18px"><button type="button" class="btn large" data-act="startNew">' + icon('plus', 28) + 'Start new test</button>';
-    if (st.newTest) h += '<button type="button" class="card" data-act="resumeNew"><div class="between"><span class="num" style="font-size:17px;font-weight:700">' + esc(st.newTest.test_id) + '</span><span class="pill">Not started</span></div><div class="muted" style="font-size:15px">You began a new test. Tap to continue.</div></button>';
+    if (st.newTest) h += '<button type="button" class="card" data-act="resumeNew"><div class="between"><span class="num" style="font-size:17px;font-weight:700">' + esc(st.newTest.test_id) + '</span><span class="pill">Not started</span></div></button>';
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">My tests</h2><span class="num muted" style="font-size:17px;font-weight:700">' + mine.length + '</span></div>';
-    h += mine.length ? '<p class="muted" style="margin-top:-4px;font-size:15px">You are the recorder. Only you can add readings.</p>' + mine.map(function (b) { return testCard(b, true); }).join('') :
-      '<div class="empty">' + icon('timer', 32) + '<b>No tests yet</b><span>Tap <strong style="color:var(--ink)">Start new test</strong> to begin.</span></div>';
+    h += mine.length ? mine.map(function (b) { return testCard(b, true); }).join('') :
+      '<div class="empty">' + icon('timer', 32) + '<b>No tests yet</b></div>';
     h += '</section>';
-    if (others.length) h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">Other running tests</h2><span class="num muted" style="font-size:17px;font-weight:700">' + others.length + '</span></div><p class="muted" style="margin-top:-4px;font-size:15px">View only. Open a test to see readings or take over.</p>' + others.map(function (b) { return testCard(b, false); }).join('') + '</section>';
+    if (others.length) h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">Other running tests</h2><span class="num muted" style="font-size:17px;font-weight:700">' + others.length + '</span></div>' + others.map(function (b) { return testCard(b, false); }).join('') + '</section>';
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">Finished tests</h2>' + (finished.length > 3 ? '<button type="button" class="quiet" data-act="toggleFinished">' + (ui.allFinished ? 'Show less' : 'See all ' + finished.length) + '</button>' : '') + '</div>';
     h += shown.length ? shown.map(function (b) {
       var t = b.test;
       return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="num" style="font-size:18px;font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div style="font-size:16px;font-weight:700">' + esc(t.template_name) + '</div><div class="muted" style="font-size:14px">' + esc(t.product) + ' · ' + b.readings.length + ' readings</div></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
-    }).join('') : '<div class="empty">' + icon('lock', 32) + '<b>No finished tests yet</b>When you finish a test, it shows here.</div>';
-    h += '</section><div class="between"><button type="button" class="quiet" data-act="theme">' + (st.theme === 'dark' ? 'Light theme' : 'Dark theme') + '</button><a class="quiet" href="desk.html">Computer view</a></div>' +
-      '<p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
+    }).join('') : '<div class="empty">' + icon('lock', 32) + '<b>No finished tests yet</b></div>';
+    h += '</section><button type="button" class="btn second" data-act="settings">' + icon('settings') + 'Settings</button><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
     return h;
   }
 
@@ -167,23 +165,20 @@
   }
   function intervalField(cur, where) {
     var opts = [5, 10, 15, 20, 30, 60];
-    return '<div class="field"><label for="f-interval">Reading interval</label><span class="muted" style="margin-top:-4px;font-size:14px">Type the minutes or tap one. Example: 15</span>' +
-      '<div class="unitwrap"><input id="f-interval" class="inp mono" inputmode="numeric" data-in="interval" data-w="' + where + '" value="' + (cur || '') + '" placeholder="15"><span>min</span></div>' +
+    return '<div class="field"><label for="f-interval">Reading interval</label>' +
+      '<div class="unitwrap"><input id="f-interval" class="inp mono" inputmode="numeric" data-in="interval" data-w="' + where + '" value="' + (cur || '') + '"><span>min</span></div>' +
       '<div class="seg" style="grid-template-columns:repeat(6,1fr)" role="radiogroup" aria-label="Quick pick">' + opts.map(function (m) { return '<button type="button" role="radio" style="min-height:48px" aria-checked="' + (cur === m) + '" data-act="intervalPick" data-w="' + where + '" data-m="' + m + '"><span class="num">' + m + '</span></button>'; }).join('') + '</div></div>';
   }
   function alarmRow(on, act) {
-    var has = T.alarm.info.present, R = T.alarm.RING;
-    var text = has ? 'Rings ' + R.ringSec + ' seconds, every ' + R.everyMin + ' minute, until you save the reading. Stops after ' + R.stopAfterMin + ' minutes.' : 'Alarm app is not on this phone. You get a short beep, only while this app is open.';
-    return '<div class="row" style="gap:10px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">' + icon('timer', 26) + '<span class="grow col" style="gap:2px"><span style="font-size:17px;font-weight:700;line-height:1.2">Alarm when a reading is due</span><span class="muted" style="font-size:14px">' + text + '</span></span>' + switchBtn(on, act, '', 'Alarm when a reading is due') + '</div>';
+    return '<div class="row" style="gap:10px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">' + icon('timer', 26) + '<span class="grow" style="font-size:17px;font-weight:700;line-height:1.2">Alarm when a reading is due</span>' + switchBtn(on, act, '', 'Alarm when a reading is due') + '</div>';
   }
   function setupScreen() {
     var d = ensureDraft(), pr = product(d.product), tpl = S().templates.find(function (t) { return t.id === d.template_id; });
     var h = setupHeader(d, 'New test', 'home') + stepBar(1) + '<main class="scroll" style="padding:14px 16px 20px">';
-    h += '<p class="row muted" style="font-size:15px">' + icon('info', 20) + 'All fields are optional. Fill what you know.</p>';
     h += '<div class="field"><span class="lbl">Template</span><button type="button" data-act="pickTemplate" style="display:flex;align-items:center;gap:10px;min-height:76px;padding:10px 12px 10px 14px;border-radius:12px;border:2px solid var(--ink);background:var(--surface);text-align:left;width:100%"><span class="grow col" style="gap:2px"><span style="font-size:13px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px">' + esc(d.product || 'No product') + '</span><span style="font-size:18px;font-weight:800;line-height:1.2">' + esc(d.template_name || 'No template') + '</span><span class="muted" style="font-size:14px">' + d.columns.length + ' columns</span></span><span class="row" style="gap:2px;font-size:16px;font-weight:700;color:var(--accent)">Change' + icon('chevron', 20) + '</span></button></div>';
-    h += field('Machine code', '<input class="inp mono" data-in="draft" data-k="machine_code" autocapitalize="characters" value="' + esc(d.machine_code) + '" placeholder="Example: BMC-1000-017">');
+    h += field('Machine code', '<input class="inp mono" data-in="draft" data-k="machine_code" autocapitalize="characters" value="' + esc(d.machine_code) + '">');
     if (pr.modes.length) {
-      h += '<div class="field"><span class="lbl">Machine mode</span><span class="muted" style="margin-top:-4px;font-size:14px">Modes of <strong style="color:var(--ink)">' + esc(pr.name) + '</strong>. Tap again to clear.</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.map(function (m) {
+      h += '<div class="field"><span class="lbl">Machine mode</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.map(function (m) {
         var on = d.mode === m;
         return '<button type="button" class="radio" role="radio" aria-checked="' + on + '" data-act="mode" data-m="' + esc(m) + '">' + (on ? icon('check', 22) : '') + '<span class="grow">' + esc(m) + '</span>' + (tpl && tpl.default_mode === m ? '<span class="tag">Template default</span>' : '') + '</button>';
       }).join('') + '</div></div>';
@@ -192,9 +187,9 @@
     h += '<div class="grid2" style="gap:16px 10px;align-items:end">' + numField('Refrigerant quantity', 'refrigerant_qty', 'kg', d.setup.refrigerant_qty) + numField('TS DM water', 'ts_water', 'L', d.setup.ts_water) + numField('BMC water', 'bmc_water', 'L', d.setup.bmc_water) +
       '</div>';
     h += intervalField(d.interval_min, 'draft') + alarmRow(d.setup.alarm !== false, 'draftAlarm');
-    h += field('Notes', '<textarea class="inp" rows="3" data-in="setup" data-k="notes" placeholder="Example: BMC filled at 11:40. Water 34 °C.">' + esc(d.setup.notes) + '</textarea>');
+    h += field('Notes', '<textarea class="inp" rows="3" data-in="setup" data-k="notes">' + esc(d.setup.notes) + '</textarea>');
     h += '<div class="field"><span class="lbl">Photos</span>' + photoRow(d.test_id, '', '', true) + '</div>';
-    h += '<div class="field"><span class="lbl">Recorded by</span><div class="row" style="gap:12px;height:56px;padding:0 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">' + avatar(T.me().name, 'sm') + '<span class="grow" style="font-size:19px;font-weight:700">' + esc(T.me().name) + '</span><span class="muted" style="font-size:13px;font-weight:700">From sign in</span></div></div>';
+    h += '<div class="field"><span class="lbl">Recorded by</span><div class="row" style="gap:12px;height:56px;padding:0 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">' + avatar(T.me().name, 'sm') + '<span class="grow" style="font-size:19px;font-weight:700">' + esc(T.me().name) + '</span></div></div>';
     h += '<button type="button" class="quiet" style="align-self:center;color:var(--bad-text)" data-act="discardNew">' + icon('trash', 18) + 'Delete this new test</button>';
     h += '</main><footer class="foot"><button type="button" class="btn" data-act="toColumns">Next: Columns' + icon('next') + '</button></footer>';
     return h;
@@ -216,7 +211,7 @@
     names.forEach(function (g) {
       h += '<section class="col" style="gap:8px"><h2 class="h-caps between"><span>' + esc(g || 'No product') + '</span><span class="num">' + groups[g].length + '</span></h2>' + groups[g].map(function (t) { return row(t, t.columns.length + ' columns'); }).join('') + '</section>';
     });
-    if (!list.length) h += '<div class="empty">' + icon('search', 32) + '<b>No template found</b>Ask your manager to add templates on the computer.</div>';
+    if (!list.length) h += '<div class="empty">' + icon('search', 32) + '<b>No template found</b></div>';
     return h + '</main>';
   }
   function switchBtn(on, act, attrs, label) {
@@ -232,11 +227,10 @@
   function columnsScreen() {
     var d = ensureDraft(), on = d.columns.filter(function (c) { return c.on !== false; }).length;
     var h = setupHeader(d, 'New test', 'toSetup') + stepBar(2) + '<main class="scroll" style="padding:14px 16px 20px;gap:12px">';
-    h += '<p class="tip" style="display:block">From template <strong style="color:var(--ink)">' + esc(d.template_name || 'none') + '</strong>. Tap a column to change it. Switch off what you do not need.</p>';
     h += '<div class="between" style="align-items:baseline"><h2 class="h-sec">Columns</h2><span class="muted" style="font-size:15px"><strong class="num" style="color:var(--ink)">' + on + '</strong> on · ' + (d.columns.length - on) + ' off</span></div>';
-    h += d.columns.length ? columnList(d.columns, 'col') : '<div class="empty">' + icon('list', 32) + '<b>No columns yet</b>Tap Add column.</div>';
+    h += d.columns.length ? columnList(d.columns, 'col') : '<div class="empty">' + icon('list', 32) + '<b>No columns yet</b></div>';
     h += '<button type="button" class="btn second" data-act="colAdd">' + icon('plus') + 'Add column</button>';
-    h += '<section class="col" style="gap:12px;padding-top:8px"><h2 class="h-sec">Compressor</h2><div class="row" style="gap:10px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">' + icon('power', 26) + '<span class="grow col" style="gap:2px"><span style="font-size:17px;font-weight:700;line-height:1.2">Track compressor ON/OFF</span><span class="muted" style="font-size:14px">Adds a big ON/OFF button while recording. Each tap saves the time.</span></span>' + switchBtn(d.track_compressor, 'trackComp', '', 'Track compressor') + '</div></section>';
+    h += '<section class="col" style="gap:12px;padding-top:8px"><h2 class="h-sec">Compressor</h2><div class="row" style="gap:10px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">' + icon('power', 26) + '<span class="grow col" style="gap:2px"><span style="font-size:17px;font-weight:700;line-height:1.2">Track compressor ON/OFF</span></span>' + switchBtn(d.track_compressor, 'trackComp', '', 'Track compressor') + '</div></section>';
     h += '</main><footer class="foot two"><button type="button" class="btn second" style="height:60px" data-act="toSetup">Back</button><button type="button" class="btn" data-act="startTest">Start test' + icon('next') + '</button></footer>';
     return h;
   }
@@ -245,15 +239,14 @@
     var types = [['number', '123', 'Number'], ['text', 'Aa', 'Text'], ['yesno', 'Y/N', 'Yes/No'], ['pick', 'List', 'Pick-list']];
     var units = ['°C', 'psi', 'bar', 'kWh', 'A', 'V'];
     var h = '<div class="scrim" data-act="closeSheet"><div class="sheet"><span class="grab"></span><h2>' + (isNew ? 'Add column' : 'Edit column') + '</h2>';
-    h += field('Name', '<input class="inp" data-in="colName" value="' + esc(c.name) + '" placeholder="Example: TE-6 Ambient">');
+    h += field('Name', '<input class="inp" data-in="colName" value="' + esc(c.name) + '">');
     h += '<div class="field"><span class="lbl">Type</span><div class="seg" style="grid-template-columns:repeat(4,1fr)" role="radiogroup">' + types.map(function (t) {
       return '<button type="button" role="radio" aria-checked="' + (c.type === t[0]) + '" data-act="colType" data-t="' + t[0] + '"><span class="num" style="font-size:15px">' + t[1] + '</span><span style="font-size:13px">' + t[2] + '</span></button>';
     }).join('') + '</div></div>';
     if (c.type === 'number') h += '<div class="field"><span class="lbl">Unit</span><div class="seg" style="grid-template-columns:repeat(4,1fr)">' + units.map(function (u) {
       return '<button type="button" aria-checked="' + (c.unit === u) + '" data-act="colUnit" data-u="' + esc(u) + '">' + esc(u) + '</button>';
-    }).join('') + '</div><input class="inp" data-in="colUnit" value="' + esc(units.indexOf(c.unit) < 0 ? c.unit : '') + '" placeholder="Other unit. Example: L/min"></div>';
-    if (c.type === 'pick') h += field('Choices', '<input class="inp" data-in="colOptions" value="' + esc((c.options || []).join(', ')) + '" placeholder="Example: Off, Slow, Fast">', 'Put a comma between choices.');
-    if (s.where === 'running' && isNew) h += '<p class="tip">' + icon('info') + '<span>Old readings show blank in a new column.</span></p>';
+    }).join('') + '</div><input class="inp" data-in="colUnit" value="' + esc(units.indexOf(c.unit) < 0 ? c.unit : '') + '"  placeholder="Other unit"></div>';
+    if (c.type === 'pick') h += field('Choices (comma between)', '<input class="inp" data-in="colOptions" value="' + esc((c.options || []).join(', ')) + '">');
     if (!isNew && s.where === 'draft') h += '<div class="field"><span class="lbl">Position <span class="muted" style="font-weight:400">· ' + (s.index + 1) + ' of ' + S().newTest.columns.length + '</span></span><div class="grid2"><button type="button" class="btn second" data-act="colMove" data-d="-1">' + icon('arrowUp') + 'Move up</button><button type="button" class="btn second" data-act="colMove" data-d="1">' + icon('arrowDown') + 'Move down</button></div></div>';
     if (ui.err) h += '<p class="err">' + esc(ui.err) + '</p>';
     h += '<button type="button" class="btn" data-act="colDone">' + icon('check') + (isNew ? 'Add column' : 'Done') + '</button>';
@@ -274,7 +267,7 @@
     var cols = T.activeColumns(b.test), pending = T.pendingReadingIds();
     var tpl = '92px 78px ' + cols.map(function (c) { return colWidth(c) + 'px'; }).join(' '), minW = 170 + cols.reduce(function (s, c) { return s + colWidth(c); }, 0);
     var style = 'grid-template-columns:' + tpl + ';min-width:' + minW + 'px';
-    var h = '<div class="rtable scroll"><div class="gridrow head" aria-hidden="true" style="' + style + '"><span class="stick">No. · Time</span><span style="align-items:flex-start">By</span>' + cols.map(function (c) { return '<span>' + esc(c.name) + '<small>' + esc(c.unit || (c.type === 'yesno' ? 'Yes/No' : c.type === 'pick' ? 'list' : '')) + '</small></span>'; }).join('') + '</div>';
+    var h = '<div class="rtable"><div class="gridrow head" aria-hidden="true" style="' + style + '"><span class="stick">No. · Time</span><span style="align-items:flex-start">By</span>' + cols.map(function (c) { return '<span>' + esc(c.name) + '<small>' + esc(c.unit || (c.type === 'yesno' ? 'Yes/No' : c.type === 'pick' ? 'list' : '')) + '</small></span>'; }).join('') + '</div>';
     h += timeline(b).map(function (it) {
       if (it.kind !== 'reading') {
         var hand = it.kind === 'handover' || it.kind === 'takeover' || it.kind === 'finish';
@@ -288,9 +281,6 @@
         '<span class="cell by">' + esc(T.personName(r.by)) + '</span>' + cols.map(function (c) { var v = r.values[c.id]; return '<span class="cell num' + (edited[c.id] ? ' ed' : '') + '">' + esc(v === undefined ? '' : v) + '</span>'; }).join('') + '</button>';
     }).join('');
     return h + '</div>';
-  }
-  function legend() {
-    return '<div class="legend"><span>' + icon('camera', 14) + 'Photo</span><span>' + icon('note', 14) + 'Note</span><span>' + icon('pencil', 14) + 'Edited</span><span>' + icon('clock', 14) + 'Time changed</span><span>' + icon('phone', 14) + 'Only on phone</span></div>';
   }
   function elapsedText(b) { return U.dur(U.minsBetween(b.test.started_at, b.test.ended_at || U.localISO())); }
   function countTile(b, clickable) {
@@ -354,15 +344,15 @@
     var t = b.test, d = draftOf(b), cols = T.activeColumns(t), no = T.nextNo(b), firstNew = {};
     cols.forEach(function (c) { if (c.added_at_no && c.added_at_no >= no) firstNew[c.id] = true; });
     var h = testHeader(b, true) + '<main class="scroll" style="padding:12px 16px 24px;gap:0">' + handoverNote(b);
-    h += '<div class="between" style="align-items:baseline;margin-bottom:8px"><h2 style="font-size:22px;font-weight:800">Reading ' + no + '</h2><span class="muted" style="font-size:14px">Fill what you can</span></div>';
+    h += '<div class="between" style="align-items:baseline;margin-bottom:8px"><h2 style="font-size:22px;font-weight:800">Reading ' + no + '</h2></div>';
     h += timeField(d.time || U.localISO(), !!d.time, U.localISO(), false);
     h += cols.map(function (c) { return inputRow(b, c, d.values[c.id], { isNew: firstNew[c.id] }); }).join('');
-    h += '<div class="field" style="padding-top:16px"><label for="r-notes" style="font-size:17px">Notes for this reading</label><textarea id="r-notes" class="inp" rows="3" data-in="note" placeholder="Write what you see. Example: fan noise, ice on coil.">' + esc(d.note) + '</textarea></div>';
+    h += '<div class="field" style="padding-top:16px"><label for="r-notes" style="font-size:17px">Notes for this reading</label><textarea id="r-notes" class="inp" rows="3" data-in="note">' + esc(d.note) + '</textarea></div>';
     h += '<div class="field" style="padding-top:16px"><span class="lbl" style="font-size:17px">Photos for this reading</span>' + photoRow(t.test_id, d.reading_id, no, true) + '</div>';
-    h += '<div class="col" style="gap:6px;padding-top:18px"><button type="button" class="btn second" data-act="addColumn">' + icon('plus') + 'Add column</button><span class="muted" style="font-size:14px;text-align:center">Old readings show blank in a new column.</span></div>';
-    h += '<section class="col" style="gap:8px;padding-top:26px"><div class="between" style="align-items:baseline"><h2 class="h-sec">Past readings <span class="num muted">' + b.readings.length + '</span></h2><span class="muted" style="font-size:14px">Newest first</span></div>';
-    if (b.readings.length || b.events.length) h += '<p class="muted" style="font-size:15px">Tap a reading to see or change it. Swipe the table left to see more columns.</p>' + legend() + readingTable(b);
-    else h += '<div class="empty">' + icon('list', 32) + '<b>No readings yet</b>Fill the form above. Then tap Save reading 1.</div>';
+    h += '<div class="col" style="gap:6px;padding-top:18px"><button type="button" class="btn second" data-act="addColumn">' + icon('plus') + 'Add column</button></div>';
+    h += '<section class="col" style="gap:8px;padding-top:26px"><div class="between" style="align-items:baseline"><h2 class="h-sec">Past readings <span class="num muted">' + b.readings.length + '</span></h2></div>';
+    if (b.readings.length || b.events.length) h += readingTable(b);
+    else h += '<div class="empty">' + icon('list', 32) + '<b>No readings yet</b></div>';
     h += '<button type="button" class="btn second" style="margin-top:14px" data-act="toFinish">' + icon('flag') + 'Finish test</button></section></main>';
     h += '<footer class="foot"><button type="button" class="btn" data-act="saveReading">' + icon('check') + 'Save reading ' + no + '</button></footer>';
     return h;
@@ -382,9 +372,9 @@
       var late = b.readings.filter(function (r) { return r.late && r.by === st.current; });
       if (late.length) h += '<div class="banner warn">' + icon('warn') + '<span><b>Your reading ' + late[late.length - 1].no + ' at ' + esc(U.hhmm(late[late.length - 1].time)) + ' is kept</b><br>You saved it after the handover, so it is marked <strong>Recorded after handover</strong>. A reviewer will choose which reading to use.</span></div>';
     }
-    h += '<div class="between" style="align-items:baseline"><h2 class="h-sec">Readings <span class="num muted">' + b.readings.length + '</span></h2><span class="muted" style="font-size:14px">Newest first</span></div>';
+    h += '<div class="between" style="align-items:baseline"><h2 class="h-sec">Readings <span class="num muted">' + b.readings.length + '</span></h2></div>';
     if (!finished) h += '<p class="muted" style="font-size:15px">Last sync <strong class="num" style="color:var(--ink)">' + (T.live.lastSyncAt ? U.hhmm(T.live.lastSyncAt) : 'not yet') + '</strong>. You cannot change these readings.</p>';
-    h += b.readings.length || b.events.length ? legend() + readingTable(b) : '<div class="empty">' + icon('list', 32) + '<b>No readings yet</b></div>';
+    h += b.readings.length || b.events.length ? readingTable(b) : '<div class="empty">' + icon('list', 32) + '<b>No readings yet</b></div>';
     h += '</main>';
     if (!finished) h += '<footer class="foot"><button type="button" class="btn" data-act="takeOver">' + icon('hand') + 'Take over</button></footer>';
     return h;
@@ -404,7 +394,7 @@
     h += '<div class="row" style="gap:12px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);margin-bottom:12px">' + avatar(T.personName(r.by)) + '<span class="grow col"><span class="muted" style="font-size:14px;font-weight:700">Recorded by</span><strong style="font-size:18px;line-height:1.2">' + esc(T.personName(r.by)) + '</strong></span><span class="col muted" style="align-items:flex-end;font-size:14px"><span class="num" style="font-weight:700;color:var(--ink)">' + esc(U.dmhm(r.time)) + '</span><span>Phone <strong class="num" style="color:var(--ink)">' + esc(r.phone || '-') + '</strong></span></span></div>';
     if (hist.length) h += '<section class="hist" style="margin-bottom:12px"><h2 class="row" style="font-size:16px;font-weight:800">' + icon('pencil', 18) + 'Changed ' + hist.length + ' time' + (hist.length === 1 ? '' : 's') + '</h2>' + hist.map(function (x) {
       return '<div class="col" style="gap:2px"><span class="between" style="align-items:baseline"><strong style="font-size:16px">' + esc(x.column_name) + '</strong><span class="num row" style="gap:6px;font-size:17px"><span class="muted" style="text-decoration:line-through">' + esc(x.column_id === '_time' ? U.hhmm(x.old_value) : (x.old_value === '' ? 'blank' : x.old_value)) + '</span><span aria-hidden="true">→</span><strong>' + esc(x.column_id === '_time' ? U.hhmm(x.new_value) : (x.new_value === '' ? 'blank' : x.new_value)) + '</strong></span></span><span class="muted" style="font-size:14px">Changed by <strong style="color:var(--ink)">' + esc(T.personName(x.by)) + '</strong> · <span class="num">' + esc(U.dmyhm(x.at)) + '</span></span></div>';
-    }).join('') + '<span class="muted" style="font-size:13px;border-top:1px solid var(--mark);padding-top:6px">Old values are kept. Reviewers can see them.</span></section>';
+    }).join('') + '</section>';
     h += timeField(e.time, r.time_changed || e.time !== r.time, r.phone_time, !canEdit);
     h += T.activeColumns(t).map(function (c) { return inputRow(b, c, e.values[c.id], { edit: true, was: first[c.id], readonly: !canEdit }); }).join('');
     h += '<div class="field" style="padding-top:16px"><label for="r-notes" style="font-size:17px">Notes for this reading</label><textarea id="r-notes" class="inp" rows="3" data-in="editNote"' + (canEdit ? '' : ' disabled') + '>' + esc(e.note) + '</textarea></div>';
@@ -427,9 +417,8 @@
     h += '<div class="grid2">' + stat('Started', U.hhmm(t.started_at), U.dm(t.started_at)) + stat('Total time', U.dur(U.minsBetween(t.started_at, end))) + stat('Readings', b.readings.length) +
       (en ? stat('Total energy <span class="chip">Auto</span>', en.total !== null ? en.total.toFixed(2) + ' <span style="font-size:15px">kWh</span>' : '-', en.total !== null ? 'From ' + esc(en.col.name) + ': ' + en.first + ' → ' + en.last : 'Needs 2 readings of ' + esc(en.col.name)) : '') + '</div>';
     if (t.track_compressor) h += '<div class="stat" style="flex-direction:row;align-items:center;gap:10px">' + icon('power', 26) + '<span class="grow col"><span class="k">Compressor on-time</span><span class="v num">' + U.dur(compMin) + '</span><small>' + (f.comp_min !== null ? '<span class="chip mark">Edited</span> Auto was ' + U.dur(comp.totalMin) : '<span class="chip">Auto</span> from ' + comp.taps + ' ON/OFF taps') + '</small></span><button type="button" class="smallbtn" data-act="compSheet">Change</button></div>';
-    h += '<div class="field"><label for="f-rem">Final remarks</label><textarea id="f-rem" class="inp" rows="4" data-in="remarks" placeholder="Example: BMC water reached 4 °C at 16:45.">' + esc(f.remarks) + '</textarea></div>';
-    if (T.waitingCount()) h += '<p class="tip">' + icon('cloudUp') + '<span>' + T.waitingCount() + ' item(s) are waiting to sync. You can still finish. They send when internet is back.</span></p>';
-    h += '<p class="tip">' + icon('lock') + '<span>After you lock, <strong style="color:var(--ink)">nobody can add or change readings</strong> in this test.</span></p></main>';
+    h += '<div class="field"><label for="f-rem">Final remarks</label><textarea id="f-rem" class="inp" rows="4" data-in="remarks">' + esc(f.remarks) + '</textarea></div>';
+    h += '</main>';
     h += '<footer class="foot two"><button type="button" class="btn second" style="height:60px" data-act="backToTest">Back</button><button type="button" class="btn" data-act="lockSheet">' + icon('lock') + 'Finish and lock</button></footer>';
     return h;
   }
@@ -440,15 +429,13 @@
     var list = people().filter(function (p) { return p.username !== st.current; }), to = list.find(function (p) { return p.username === hd.to; });
     var needSync = hd.where === 'own' && (!navigator.onLine || T.waitingCount() > 0);
     var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Hand over</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
-    h += '<p class="tip">' + icon('info') + '<span>Only one person records at a time. After you hand over, you can only <strong style="color:var(--ink)">view</strong> this test.</span></p>';
     h += '<div class="field"><span class="lbl" style="font-size:18px">Who records next?</span><div class="col" style="gap:6px">' + (list.length ? list.map(function (p) {
       return '<button type="button" class="person" aria-pressed="' + (p.username === hd.to) + '" data-act="handTo" data-u="' + esc(p.username) + '">' + avatar(p.name) + '<span class="grow">' + esc(p.name) + '</span>' + (p.username === hd.to ? icon('check') : '') + '</button>';
-    }).join('') : '<div class="empty">No other people yet. Ask your manager to add them.</div>') + '</div></div>';
+    }).join('') : '<div class="empty"><b>No other people yet</b></div>') + '</div></div>';
     if (to) {
       h += '<div class="field"><span class="lbl">' + esc(to.name) + ' will record on</span><div class="seg" style="grid-template-columns:1fr 1fr" role="radiogroup"><button type="button" role="radio" aria-checked="' + (hd.where === 'own') + '" data-act="handWhere" data-w="own">' + icon('phone', 22) + 'Own phone</button><button type="button" role="radio" aria-checked="' + (hd.where === 'this') + '" data-act="handWhere" data-w="this">' + icon('phone', 22) + 'This phone ' + esc(st.phone) + '</button></div></div>';
-      if (needSync) h += '<div class="banner warn">' + icon('cloudOff') + '<span class="grow"><b>Sync first, then hand over</b><br>' + (navigator.onLine ? T.waitingCount() + ' item(s) are still on this phone. ' : 'You are offline. ') + esc(to.name) + "'s phone cannot get your readings yet.<br><button type=\"button\" class=\"smallbtn\" style=\"margin-top:8px\" data-act=\"syncNow\">" + icon('syncArrows', 18) + ' Try sync now</button><br><span style="font-size:14px">Or pick <strong>This phone</strong>. Hand over on this phone works offline.</span></span></div>';
-      h += '<div class="field"><label for="h-note">Note for ' + esc(to.name) + ' <span class="muted" style="font-weight:400">· optional</span></label><textarea id="h-note" class="inp" rows="3" data-in="handNote" placeholder="Example: Next reading at 15:30. Compressor ON since 14:57.">' + esc(hd.note) + '</textarea></div>';
-      if (hd.where === 'this') h += '<p class="tip">' + icon('info') + '<span>After hand over, ' + esc(to.name) + ' signs in on this phone with their own password.</span></p>';
+      if (needSync) h += '<div class="banner warn">' + icon('cloudOff') + '<span class="grow"><b>Sync first, then hand over</b><br>' + (navigator.onLine ? T.waitingCount() + ' item(s) are still on this phone. ' : 'You are offline. ') + esc(to.name) + "'s phone cannot get your readings yet.<br><button type=\"button\" class=\"smallbtn\" style=\"margin-top:8px\" data-act=\"syncNow\">" + icon('syncArrows', 18) + ' Try sync now</button></span></div>';
+      h += '<div class="field"><label for="h-note">Note for ' + esc(to.name) + ' <span class="muted" style="font-weight:400">· optional</span></label><textarea id="h-note" class="inp" rows="3" data-in="handNote">' + esc(hd.note) + '</textarea></div>';
     }
     h += '</main><footer class="foot"><button type="button" class="btn" data-act="doHandover"' + (!to || needSync ? ' disabled' : '') + '>' + icon('swap') + 'Hand over' + (to ? ' to ' + esc(to.name) : '') + '</button></footer>';
     return h;
@@ -462,7 +449,7 @@
     if (s.name === 'column') return columnSheet();
     if (s.name === 'password') return '';
     if (s.name === 'menu') {
-      return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
+      return open + '<h2>' + esc(b.test.test_id) + '</h2><button type="button" class="menuitem" data-act="toSetupEdit">' + icon('pencil', 24) + '<span class="grow">Change setup</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toHandover">' + icon('swap', 24) + '<span class="grow">Hand over</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="toFinish">' + icon('flag', 24) + '<span class="grow">Finish test</span>' + icon('chevron', 20) + '</button><button type="button" class="menuitem" data-act="addColumn">' + icon('plus', 24) + '<span class="grow">Add column</span>' + icon('chevron', 20) + '</button><button type="button" class="btn second" data-act="closeSheet">Close</button>' + close;
     }
     if (s.name === 'interval') {
       var cur = s.value, last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, b.test.started_at || ''), next = cur ? new Date(U.toDate(last).getTime() + cur * 60000) : null;
@@ -471,11 +458,11 @@
         '<button type="button" class="btn" data-act="intervalSave">' + icon('check') + 'Save</button>' + close;
     }
     if (s.name === 'time') {
-      return open + '<h2>' + esc(s.title) + '</h2><p class="muted">Use this only when the reading was taken at another time. A changed time is marked.</p>' + field('Time', '<input class="inp mono" type="datetime-local" id="time-in" value="' + esc((s.value || U.localISO()).slice(0, 16)) + '">') +
+      return open + '<h2>' + esc(s.title) + '</h2>' + field('Time', '<input class="inp mono" type="datetime-local" id="time-in" value="' + esc((s.value || U.localISO()).slice(0, 16)) + '">') +
         '<button type="button" class="btn" data-act="timeSave">' + icon('check') + 'Use this time</button><button type="button" class="btn second" data-act="timeReset">' + icon('clock') + 'Use phone time</button>' + close;
     }
     if (s.name === 'comp') {
-      return open + '<h2>Compressor on-time</h2><p class="muted">Auto value from the ON/OFF taps: <strong class="num" style="color:var(--ink)">' + U.dur(s.auto) + '</strong>. Change it only if a tap was missed.</p><div class="grid2">' + field('Hours', '<input class="inp mono" inputmode="numeric" id="comp-h" value="' + Math.floor(s.value / 60) + '">') + field('Minutes', '<input class="inp mono" inputmode="numeric" id="comp-m" value="' + (s.value % 60) + '">') + '</div><button type="button" class="btn" data-act="compSave">' + icon('check') + 'Save</button><button type="button" class="btn second" data-act="compReset">Use auto value</button>' + close;
+      return open + '<h2>Compressor on-time</h2><p class="muted">Auto: <strong class="num" style="color:var(--ink)">' + U.dur(s.auto) + '</strong></p><div class="grid2">' + field('Hours', '<input class="inp mono" inputmode="numeric" id="comp-h" value="' + Math.floor(s.value / 60) + '">') + field('Minutes', '<input class="inp mono" inputmode="numeric" id="comp-m" value="' + (s.value % 60) + '">') + '</div><button type="button" class="btn" data-act="compSave">' + icon('check') + 'Save</button><button type="button" class="btn second" data-act="compReset">Use auto value</button>' + close;
     }
     if (s.name === 'lock') {
       var f = finishDraft(b), end = f.ended_at || U.localISO(), en = T.energy(b);
@@ -484,7 +471,7 @@
     if (s.name === 'takeover') {
       var who = T.personName(b.test.current_recorder), c = T.compressor(b);
       return open + '<h2 class="row">' + icon('hand', 28) + 'Take over from ' + esc(who) + '?</h2><p class="muted" style="font-size:17px">You become the recorder of <strong class="num" style="color:var(--ink)">' + esc(b.test.test_id) + '</strong>. ' + esc(who) + ' can only view it after this.</p><div class="grid2">' + stat('Readings', b.readings.length) + stat('Last sync', T.live.lastSyncAt ? U.hhmm(T.live.lastSyncAt) : '-') + (b.test.track_compressor ? stat('Compressor', c.on ? 'ON' : 'OFF') : '') + '</div>' +
-        (navigator.onLine ? '<p class="tip">' + icon('info') + '<span>' + esc(who) + ' will see a message that you took over.</span></p>' : '<div class="banner warn">' + icon('cloudOff') + '<span><b>No internet</b><br>Take over needs internet, so this phone gets the latest readings.</span></div>') +
+        (navigator.onLine ? '' : '<div class="banner warn">' + icon('cloudOff') + '<span><b>No internet</b><br>Take over needs internet, so this phone gets the latest readings.</span></div>') +
         '<button type="button" class="btn" data-act="doTakeover"' + (navigator.onLine && !ui.busy ? '' : ' disabled') + '>' + (ui.busy ? spin() : icon('hand')) + 'Yes, take over</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
     }
     if (s.name === 'photo') {
@@ -499,7 +486,6 @@
       if (T.live.error && state === 'failed') h += '<p class="err">' + esc(T.live.error) + '</p>';
       if (T.live.blockedUser) h += '<div class="banner warn">' + icon('warn') + '<span><b>' + esc(T.personName(T.live.blockedUser)) + ' must sign in</b><br>Some readings saved by ' + esc(T.personName(T.live.blockedUser)) + ' are waiting. They send after ' + esc(T.personName(T.live.blockedUser)) + ' signs in on this phone with internet.</span></div>';
       if (st.failed.length) h += '<div class="banner bad">' + icon('warn') + '<span><b>' + st.failed.length + ' change(s) were not accepted</b><br>' + esc(st.failed[st.failed.length - 1].error) + '<br>Tell your manager. The data is kept on this phone.</span></div>';
-      h += alarmPanel();
       h += '<button type="button" class="btn" data-act="syncNow"' + (T.live.syncing ? ' disabled' : '') + '>' + icon('syncArrows') + 'Sync now</button><button type="button" class="btn second" data-act="closeSheet">Close</button><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p>' + close;
       return h;
     }
@@ -507,13 +493,46 @@
   }
 
   function alarmPanel() {
-    var a = T.alarm.info;
-    if (!a.present) return '<div class="tip">' + icon('timer') + '<span><strong style="color:var(--ink)">Alarm app is not on this phone</strong><br>For a loud alarm when the phone is locked, install the Test Log alarm app. <a href="testlog-alarm.apk">Download the alarm app</a></span></div>';
+    var a = T.alarm.info, url = new URL('testlog-alarm.apk', location.href).href;
+    var link = function (label) { return '<a class="btn second" href="testlog-alarm.apk" download>' + icon('download') + label + '</a>'; };
+    if (!a.present) return '<div class="banner warn">' + icon('timer') + '<span><b>Alarm app is not on this phone</b></span></div>' + link('Download alarm app');
     var p = a.perms || {}, rows = [['notifications', 'Show notifications'], ['exactAlarm', 'Ring at the exact time'], ['fullScreen', 'Show over the lock screen'], ['batteryExempt', 'Run when the phone saves battery']];
-    var missing = rows.filter(function (r) { return p[r[0]] === false; });
-    return '<div class="col" style="gap:8px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2)"><div class="between"><strong>' + icon('timer', 18) + ' Alarm app</strong><span class="chip">shell build ' + a.shellBuild + '</span></div>' +
-      (missing.length ? '<span class="err">' + missing.length + ' permission' + (missing.length === 1 ? ' is' : 's are') + ' missing. The alarm may not ring.</span>' : '<span class="muted" style="font-size:15px">All 4 permissions are given. ' + Object.keys(a.armed).length + ' alarm(s) set now.</span>') +
-      rows.map(function (r) { return '<div class="between" style="min-height:44px"><span class="row">' + icon(p[r[0]] === false ? 'warn' : 'check', 18) + r[1] + '</span>' + (p[r[0]] === false ? '<button type="button" class="smallbtn" style="height:40px" data-act="alarmPerm" data-p="' + r[0] + '">Allow</button>' : '') + '</div>'; }).join('') + '</div>';
+    var missing = rows.filter(function (r) { return p[r[0]] === false; }), old = a.shellBuild < T.alarm.LATEST_SHELL;
+    var h = '<div class="between"><span class="row" style="font-weight:700">' + icon(old ? 'warn' : 'check', 20) + 'Alarm app</span><span class="chip' + (old ? ' mark' : '') + '">shell build ' + a.shellBuild + (old ? ' · new: ' + T.alarm.LATEST_SHELL : '') + '</span></div>';
+    if (missing.length) h += '<span class="err">' + missing.length + ' permission' + (missing.length === 1 ? ' is' : 's are') + ' missing. The alarm may not ring.</span>';
+    h += rows.map(function (r) { return '<div class="between" style="min-height:44px"><span class="row">' + icon(p[r[0]] === false ? 'warn' : 'check', 18) + r[1] + '</span>' + (p[r[0]] === false ? '<button type="button" class="smallbtn" style="height:40px" data-act="alarmPerm" data-p="' + r[0] + '">Allow</button>' : '') + '</div>'; }).join('');
+    // Shell build 1 and 2 cannot download a file from inside the app, so they get the address to open in Chrome.
+    if (a.shellBuild < 3) h += '<div class="banner warn">' + icon('download') + '<span><b>Update the alarm app</b><br>Open Chrome and go to:<br><strong class="num" style="word-break:break-all">' + esc(url.replace(/^https?:\/\//, '')) + '</strong></span></div>';
+    else h += link(old ? 'Update alarm app' : 'Download alarm app again');
+    return h;
+  }
+  function settingsScreen() {
+    var st = S(), me = T.me(), box = function (title, inner) { return '<section class="col" style="gap:10px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">' + title + '</h2>' + inner + '</section>'; };
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="home" aria-label="Back">' + icon('back', 26) + '</button><span class="grow" style="font-size:20px;font-weight:800">Settings</span>' + syncBadge() + '</div></header><main class="scroll">';
+    h += box('Account', '<div class="row" style="gap:12px">' + avatar(me.name) + '<span class="grow col"><strong style="font-size:19px">' + esc(me.name) + '</strong><span class="muted" style="font-size:14px">' + esc(me.username) + ' · ' + (me.role === 'reviewer' ? 'Reviewer' : 'Engineer') + '</span></span></div><button type="button" class="btn second" data-act="changeUser">' + icon('swap') + 'Change user</button>');
+    h += box('Alarm', alarmPanel());
+    h += box('Display', '<div class="between" style="min-height:48px"><span style="font-size:17px;font-weight:700">Dark theme</span>' + switchBtn(st.theme === 'dark', 'theme', '', 'Dark theme') + '</div>');
+    h += box('Computer', '<a class="btn second" href="desk.html">Open computer view' + icon('chevron') + '</a>');
+    return h + '<p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + (T.alarm.info.present ? ' · Alarm shell ' + T.alarm.info.shellBuild : '') + '</p></main>';
+  }
+
+  /* ---------- change setup during a test ---------- */
+  var SETUP_FIELDS = [['machine_code', 'Machine code'], ['mode', 'Machine mode'], ['refrigerant_qty', 'Refrigerant quantity'], ['ts_water', 'TS DM water'], ['bmc_water', 'BMC water'], ['notes', 'Notes']];
+  function setupOf(t) { var x = t.setup || {}; return { machine_code: t.machine_code || '', mode: t.mode || '', refrigerant_qty: x.refrigerant_qty || '', ts_water: x.ts_water || '', bmc_water: x.bmc_water || '', notes: x.notes || '' }; }
+  function editSetupScreen(b) {
+    var t = b.test, e = ui.setupEdit || (ui.setupEdit = setupOf(t)), pr = product(t.product);
+    var numF = function (label, key, unit) { return '<div class="field"><label for="se-' + key + '" style="line-height:1.2">' + label + '</label><div class="unitwrap"><input id="se-' + key + '" class="inp mono" inputmode="decimal" data-in="se" data-k="' + key + '" value="' + esc(e[key]) + '"><span>' + unit + '</span></div></div>'; };
+    var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col"><span style="font-size:20px;font-weight:800;line-height:1.2">Change setup</span><span class="num muted" style="font-size:14px">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
+    h += field('Machine code', '<input class="inp mono" id="se-machine_code" data-in="se" data-k="machine_code" autocapitalize="characters" value="' + esc(e.machine_code) + '">');
+    if (pr.modes.length || e.mode) h += '<div class="field"><span class="lbl">Machine mode</span><div class="col" role="radiogroup" style="gap:6px">' + pr.modes.concat(e.mode && pr.modes.indexOf(e.mode) < 0 ? [e.mode] : []).map(function (m) {
+      var on = e.mode === m;
+      return '<button type="button" class="radio" role="radio" aria-checked="' + on + '" data-act="seMode" data-m="' + esc(m) + '">' + (on ? icon('check', 22) : '') + '<span class="grow">' + esc(m) + '</span></button>';
+    }).join('') + '</div></div>';
+    h += '<div class="grid2" style="gap:16px 10px;align-items:end">' + numF('Refrigerant quantity', 'refrigerant_qty', 'kg') + numF('TS DM water', 'ts_water', 'L') + numF('BMC water', 'bmc_water', 'L') + '</div>';
+    h += field('Notes', '<textarea class="inp" rows="3" id="se-notes" data-in="se" data-k="notes">' + esc(e.notes) + '</textarea>');
+    h += '<div class="field"><span class="lbl">Photos</span>' + photoRow(t.test_id, '', '', true) + '</div>';
+    h += '<button type="button" class="btn second" data-act="intervalSheet">' + icon('timer') + 'Reading interval and alarm</button>';
+    return h + '</main><footer class="foot two"><button type="button" class="btn second" style="height:60px" data-act="backToTest">Back</button><button type="button" class="btn" data-act="saveSetup">' + icon('check') + 'Save setup</button></footer>';
   }
 
   /* ---------- render ---------- */
@@ -532,8 +551,10 @@
       if (p[2] === 'r') { var r = b.readings.find(function (x) { return x.reading_id === p[3]; }); html = r ? editScreen(b, r) : (mine ? recordScreen(b) : viewScreen(b)); }
       else if (p[2] === 'finish' && mine) html = finishScreen(b);
       else if (p[2] === 'handover' && mine) html = handoverScreen(b);
+      else if (p[2] === 'setup' && mine) html = editSetupScreen(b);
       else html = mine ? recordScreen(b) : viewScreen(b);
-    } else html = homeScreen();
+    } else if (p[0] === 'settings') html = settingsScreen();
+    else html = homeScreen();
     var offline = !navigator.onLine && st.current ? '<div class="offline-bar">' + icon('cloudOff', 18) + 'No internet. Readings are saved on this phone.</div>' : '';
     root.innerHTML = '<div class="fz ph' + (st.theme === 'dark' ? ' fz-dark' : '') + '">' + offline + html + (st.current ? sheetHtml() : '') + (ui.toast ? '<div class="toast" role="status">' + icon(ui.toast.kind === 'bad' ? 'warn' : ui.toast.kind === 'phone' ? 'phoneOk' : 'check') + '<span>' + esc(ui.toast.text) + '</span></div>' : '') + '</div>';
     document.body.classList.toggle('dark', st.theme === 'dark');
@@ -666,8 +687,21 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       go('t/' + encodeURIComponent(test.test_id));
     },
     menu: function () { ui.sheet = { name: 'menu' }; render(); },
-    backToTest: function () { ui.edit = null; go('t/' + encodeURIComponent(parts()[1])); },
+    backToTest: function () { ui.edit = null; ui.setupEdit = null; go('t/' + encodeURIComponent(parts()[1])); },
     toFinish: function () { go('t/' + encodeURIComponent(parts()[1]) + '/finish'); },
+    settings: function () { T.alarm.refresh().then(function () { if (parts()[0] === 'settings') render(); }); go('settings'); },
+    toSetupEdit: function () { ui.setupEdit = null; go('t/' + encodeURIComponent(parts()[1]) + '/setup'); },
+    seMode: function (el) { ui.setupEdit.mode = ui.setupEdit.mode === el.dataset.m ? '' : el.dataset.m; render(); },
+    saveSetup: function () {
+      var b = curTest(), t = b.test, e = ui.setupEdit, old = setupOf(t), changed = [];
+      SETUP_FIELDS.forEach(function (f) { e[f[0]] = String(e[f[0]] || '').trim(); if (e[f[0]] !== old[f[0]]) changed.push(f[1] + ': ' + (old[f[0]] || 'blank') + ' → ' + (e[f[0]] || 'blank')); });
+      if (changed.length) {
+        T.act('test.update', { test_id: t.test_id, patch: { machine_code: e.machine_code, mode: e.mode, setup: Object.assign({}, t.setup, { refrigerant_qty: e.refrigerant_qty, ts_water: e.ts_water, bmc_water: e.bmc_water, notes: e.notes }) } });
+        T.act('event.add', { event: { event_id: U.uid(), test_id: t.test_id, kind: 'setup', time: U.localISO(), text: 'Setup changed. ' + changed.join('; ') } });
+      }
+      ui.setupEdit = null; go('t/' + encodeURIComponent(t.test_id));
+      toast(changed.length ? 'Setup changed.' : 'Nothing was changed.');
+    },
     toHandover: function () { ui.hand = null; go('t/' + encodeURIComponent(parts()[1]) + '/handover'); },
     intervalSheet: function () { var t = curTest().test; ui.sheet = { name: 'interval', value: t.interval_min || 15, alarm: !(t.setup && t.setup.alarm === false) }; render(); },
     intervalPick: function (el) { if (el.dataset.w === 'draft') { S().newTest.interval_min = Number(el.dataset.m); T.save(); } else ui.sheet.value = Number(el.dataset.m); render(); },
@@ -811,6 +845,7 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       (p[2] === 'r' ? ui.edit.values : draftOf(b).values)[el.dataset.c] = el.value;
       el.classList.toggle('filled', el.value !== '');
     }
+    else if (k === 'se') { if (el.inputMode === 'decimal') el.value = cleanNumber(el.value); ui.setupEdit[el.dataset.k] = el.value; return; }
     else if (k === 'note') draftOf(curTest()).note = el.value;
     else if (k === 'editNote') ui.edit.note = el.value;
     else if (k === 'remarks') finishDraft(curTest()).remarks = el.value;
@@ -848,6 +883,7 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     if (ui.sheet) { ui.sheet = null; ui.err = ''; render(); return true; }
     var p = parts();
     if (!S() || !S().current || !p.length) return false;
+    if (p[0] === 'settings') { go(''); return true; }
     if (p[0] === 't' && p.length > 2) go('t/' + encodeURIComponent(p[1]));
     else if (p[0] === 'new' && p.length > 1) go('new');
     else go('');

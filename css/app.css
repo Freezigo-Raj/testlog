@@ -247,3 +247,8 @@ textarea.inp{height:auto;min-height:96px;padding:12px 14px;font-size:17px;line-h
 }
 
 .torchbtn[aria-pressed=true]{background:var(--warn);color:var(--warn-ink)}
+/* Sections keep their full height; the page scrolls instead of squeezing them. */
+.ph main>*,.ph main>section>*,.sheet>*{flex-shrink:0}
+.rtable{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+/* Room for the Android status bar and gesture bar when the page is drawn under them. */
+.ph{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}

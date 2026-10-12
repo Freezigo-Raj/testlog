@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 8;
+  var BUILD = 10;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -258,6 +258,18 @@
     var last = b.readings.reduce(function (m, r) { return r.time > m ? r.time : m; }, t.started_at || '');
     var base = toDate(last);
     return base ? new Date(base.getTime() + t.interval_min * 60000) : null;
+  }
+  var ROLES = { reviewer: 'Reviewer', engineer: 'Engineer', technician: 'Technician' };
+  function roleName(r) { return ROLES[r] || 'Technician'; }
+  /**
+   * When the test began, for "time from start": the start time, or the first reading's time if that is earlier.
+   * Example: test started on the phone at 11:59, but readings were entered with times 10:45, 11:20 and 11:58
+   * (copied from paper). Time zero is then 10:45, so those readings sit at 0, 0.58 and 1.22 hours.
+   */
+  function startOf(b) {
+    var s = b.test.started_at || '';
+    b.readings.forEach(function (r) { if (r.time && (!s || r.time < s)) s = r.time; });
+    return s;
   }
   /** What a person calls the test: the machine name/code, else the template name. The Test ID is only a reference. */
   function testTitle(t) { return (t && (t.machine_code || t.template_name)) || 'Test'; }
@@ -556,7 +568,7 @@
     api: api, signIn: signIn, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
     act: act, sync: sync, scheduleSync: scheduleSync, pushNow: pushNow, syncState: syncState, waitingCount: waitingCount, pendingReadingIds: pendingReadingIds,
     newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
-    compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder, testTitle: testTitle, isDeleted: isDeleted, predict: predict, decimalsOf: decimalsOf, LIMIT: LIMIT,
+    compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder, testTitle: testTitle, startOf: startOf, roleName: roleName, isDeleted: isDeleted, predict: predict, decimalsOf: decimalsOf, LIMIT: LIMIT,
     addPhoto: addPhoto, photoSrc: photoSrc, testPhotos: testPhotos, photosDb: photosDb,
     u: { pad: pad, localISO: localISO, toDate: toDate, hhmm: hhmm, dmy: dmy, dm: dm, dmhm: dmhm, dmyhm: dmyhm, minsBetween: minsBetween, dur: dur, hm: hm, uid: uid, esc: esc, initials: initials, num: num, icon: icon }
   };

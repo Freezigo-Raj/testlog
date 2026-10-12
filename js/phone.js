@@ -291,7 +291,7 @@
     }).join('');
     return h + '</div>';
   }
-  function elapsedText(b) { return U.dur(U.minsBetween(b.test.started_at, b.test.ended_at || U.localISO())); }
+  function elapsedText(b) { return U.dur(U.minsBetween(T.startOf(b), b.test.ended_at || U.localISO())); }
   function countTile(b, clickable) {
     var t = b.test, due = T.nextDue(b), s = due ? Math.round((due - Date.now()) / 1000) : null, isDue = s !== null && s <= 0;
     var mid = !due ? 'No timer' : isDue ? 'Due now' : (clickable ? U.pad(Math.floor(s / 60)) + ':' + U.pad(s % 60) : U.pad(due.getHours()) + ':' + U.pad(due.getMinutes()));
@@ -378,7 +378,7 @@
     var h = testHeader(b, false) + '<main class="scroll" style="padding:14px 16px 24px;gap:10px">';
     if (finished) {
       var en = T.energy(b), comp = t.comp_on_min !== null && t.comp_on_min !== undefined ? t.comp_on_min : T.compressor(b).totalMin;
-      h += '<div class="banner">' + icon('lock') + '<span><b>Finished and locked</b><br>' + esc(U.dmyhm(t.started_at)) + ' → ' + esc(U.hhmm(t.ended_at)) + '. Nobody can change this test.</span></div>';
+      h += '<div class="banner">' + icon('lock') + '<span><b>Finished and locked</b><br>' + esc(U.dmyhm(T.startOf(b))) + ' → ' + esc(U.hhmm(t.ended_at)) + '. Nobody can change this test.</span></div>';
       h += '<div class="grid2">' + stat('Total time', elapsedText(b)) + stat('Readings', b.readings.length) + (en && en.total !== null ? stat('Total energy', en.total.toFixed(2) + ' kWh') : '') + (t.track_compressor ? stat('Compressor on-time', U.dur(comp)) : '') + '</div>';
       var extra = b.notes.filter(function (n) { return !n.reading_id; }).sort(function (x, y) { return (x.at || '').localeCompare(y.at || ''); });
       h += '<section class="col" style="gap:8px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">Notes</h2>' +
@@ -440,7 +440,7 @@
     var compMin = f.comp_min !== null ? f.comp_min : Math.round(comp.totalMin);
     var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="backToTest" aria-label="Back">' + icon('back', 26) + '</button><div class="grow col" style="min-width:0"><span class="ttl">Finish test · ' + esc(T.testTitle(t)) + '</span><span class="idref">' + esc(t.test_id) + '</span></div>' + syncBadge() + '</div></header><main class="scroll" style="padding:14px 16px 20px">';
     h += '<div class="timefield" data-changed="' + !!f.ended_at + '">' + icon('clock', 26) + '<span class="grow col"><span class="muted" style="font-size:14px;font-weight:700">End time</span><span class="row"><span class="num v"' + (f.ended_at ? '' : ' data-tick="clock"') + '>' + esc(U.hhmm(end)) + '</span>' + (f.ended_at ? '<span class="chip mark">Changed</span>' : '<span class="chip">Phone time</span>') + '</span></span><button type="button" class="smallbtn" data-act="endTimeSheet">Change</button></div>';
-    h += '<div class="grid2">' + stat('Started', U.hhmm(t.started_at), U.dm(t.started_at)) + stat('Total time', U.dur(U.minsBetween(t.started_at, end))) + stat('Readings', b.readings.length) +
+    h += '<div class="grid2">' + stat('Started', U.hhmm(T.startOf(b)), U.dm(T.startOf(b))) + stat('Total time', U.dur(U.minsBetween(T.startOf(b), end))) + stat('Readings', b.readings.length) +
       (en ? stat('Total energy <span class="chip">Auto</span>', en.total !== null ? en.total.toFixed(2) + ' <span style="font-size:15px">kWh</span>' : '-', en.total !== null ? 'From ' + esc(en.col.name) + ': ' + en.first + ' → ' + en.last : 'Needs 2 readings of ' + esc(en.col.name)) : '') + '</div>';
     if (t.track_compressor) h += '<div class="stat" style="flex-direction:row;align-items:center;gap:10px">' + icon('power', 26) + '<span class="grow col"><span class="k">Compressor on-time</span><span class="v num">' + U.dur(compMin) + '</span><small>' + (f.comp_min !== null ? '<span class="chip mark">Edited</span> Auto was ' + U.dur(comp.totalMin) : '<span class="chip">Auto</span> from ' + comp.taps + ' ON/OFF taps') + '</small></span><button type="button" class="smallbtn" data-act="compSheet">Change</button></div>';
     h += '<div class="field"><label for="f-rem">Final remarks</label><textarea id="f-rem" class="inp" rows="4" data-in="remarks">' + esc(f.remarks) + '</textarea></div>';
@@ -498,7 +498,7 @@
     }
     if (s.name === 'lock') {
       var f = finishDraft(b), end = f.ended_at || U.localISO(), en = T.energy(b);
-      return open + '<div class="col"><h2>Finish and lock ' + esc(T.testTitle(b.test)) + '?</h2><span class="idref">' + esc(b.test.test_id) + '</span></div><p class="muted" style="font-size:17px">You cannot add or change readings after this.</p><div class="grid2">' + stat('Readings', b.readings.length) + stat('Total time', U.dur(U.minsBetween(b.test.started_at, end))) + (en && en.total !== null ? stat('Energy', en.total.toFixed(2) + ' kWh') : '') + '</div><button type="button" class="btn" data-act="doFinish">' + icon('lock') + 'Yes, finish and lock</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
+      return open + '<div class="col"><h2>Finish and lock ' + esc(T.testTitle(b.test)) + '?</h2><span class="idref">' + esc(b.test.test_id) + '</span></div><p class="muted" style="font-size:17px">You cannot add or change readings after this.</p><div class="grid2">' + stat('Readings', b.readings.length) + stat('Total time', U.dur(U.minsBetween(T.startOf(b), end))) + (en && en.total !== null ? stat('Energy', en.total.toFixed(2) + ' kWh') : '') + '</div><button type="button" class="btn" data-act="doFinish">' + icon('lock') + 'Yes, finish and lock</button><button type="button" class="btn second" data-act="closeSheet">No, go back</button>' + close;
     }
     if (s.name === 'takeover') {
       var who = T.personName(b.test.current_recorder), c = T.compressor(b);
@@ -541,7 +541,7 @@
   function settingsScreen() {
     var st = S(), me = T.me(), box = function (title, inner) { return '<section class="col" style="gap:10px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">' + title + '</h2>' + inner + '</section>'; };
     var h = '<header class="hdr" style="padding:8px 12px 8px 8px"><div class="row" style="gap:6px"><button type="button" class="iconbtn" data-act="home" aria-label="Back">' + icon('back', 26) + '</button><span class="grow" style="font-size:20px;font-weight:800">Settings</span>' + syncBadge() + '</div></header><main class="scroll">';
-    h += box('Account', '<div class="row" style="gap:12px">' + avatar(me.name) + '<span class="grow col"><strong style="font-size:19px">' + esc(me.name) + '</strong><span class="muted" style="font-size:14px">' + esc(me.username) + ' · ' + (me.role === 'reviewer' ? 'Reviewer' : 'Engineer') + '</span></span><button type="button" class="smallbtn" data-act="changeUser">' + icon('swap', 18) + ' Change user</button></div>');
+    h += box('Account', '<div class="row" style="gap:12px">' + avatar(me.name) + '<span class="grow col"><strong style="font-size:19px">' + esc(me.name) + '</strong><span class="muted" style="font-size:14px">' + esc(me.username) + ' · ' + T.roleName(me.role) + '</span></span><button type="button" class="smallbtn" data-act="changeUser">' + icon('swap', 18) + ' Change user</button></div>');
     h += box('Alarm', alarmPanel());
     h += box('Display', '<div class="between" style="min-height:48px"><span style="font-size:17px;font-weight:700">Dark theme</span>' + switchBtn(st.theme === 'dark', 'theme', '', 'Dark theme') + '</div>');
     h += box('Computer', '<a class="btn second" href="desk.html">Open computer view' + icon('chevron') + '</a>');

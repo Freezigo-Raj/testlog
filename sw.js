@@ -1,6 +1,6 @@
 /* Keeps the app working without internet. Change BUILD when the app files change. */
-var BUILD = 10, CACHE = 'testlog-b' + BUILD;
-var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/alarm.js', 'js/torch.js', 'js/phone.js', 'js/desk.js', 'vendor/exceljs.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+var BUILD = 12, CACHE = 'testlog-b' + BUILD;
+var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/alarm.js', 'js/torch.js', 'js/phone.js', 'js/desk.js', 'js/import.js', 'vendor/exceljs.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 // A NEW BUILD IS DOWNLOADED WHOLE, AND FRESH (build 6).
 // The web host tells the phone it may reuse a file for 10 minutes. Build 5 and older filled the new

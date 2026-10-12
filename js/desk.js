@@ -37,6 +37,7 @@
       return call('sync', { ops: [], since: '9999' }).then(function (r) { if (r.user && T.me().role !== r.user.role) { T.me().role = r.user.role; T.me().name = r.user.name; T.save(); }   // a role changed by a reviewer applies here
         D.people = r.data.people; D.products = r.data.products; D.templates = r.data.templates; D.phones = r.data.phones || []; D.meta = true; render(); }, fail);
     }
+    if (p[0] === 'import') { D.tests = null; ui.imp = null; ui.impBusy = false; }
     render();
     return call('listTests').then(function (r) { setList(r); render(); }, fail);
   }
@@ -94,7 +95,7 @@
     var modes = prod ? prod.modes : D.products.reduce(function (a, p) { return a.concat(p.modes); }, []).filter(function (x, i, a) { return a.indexOf(x) === i; });
     var tnames = D.tests.map(function (t) { return t.template_name; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).sort();
     var used = Object.keys(f).filter(function (k) { return f[k]; }).length;
-    var h = '<div class="between" style="flex-wrap:wrap"><h1>Tests <span class="num">' + D.tests.length + '</span></h1><div class="row"><span class="muted" style="font-size:13px">Updated <strong class="num">' + U.hhmm(D.loadedAt) + '</strong></span><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button></div></div>';
+    var h = '<div class="between" style="flex-wrap:wrap"><h1>Tests <span class="num">' + D.tests.length + '</span></h1><div class="row"><span class="muted" style="font-size:13px">Updated <strong class="num">' + U.hhmm(D.loadedAt) + '</strong></span><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button>' + (canTemplates() ? '<a class="dbtn" href="#/import">' + icon('excel', 18) + 'Import test from Excel</a>' : '') + (reviewer() ? '<button type="button" class="dbtn" data-act="backup"' + (ui.backing ? ' disabled' : '') + '>' + (ui.backing ? spin() : icon('download', 18)) + 'Back up all data</button>' : '') + '</div></div>';
     h += '<section class="panel noprint"><div class="filters">' + inp('q', 'Search tests', 'search', 'Test ID, template, machine') + inp('from', 'Date from', 'date') + inp('to', 'Date to', 'date') +
       sel('product', 'Product', D.products.map(function (p) { return p.name; }), 'All products') + sel('mode', 'Mode' + (prod ? ' · of ' + esc(prod.name) : ''), modes, 'All modes') + sel('template', 'Template', tnames, 'All templates') +
       inp('machine', 'Machine name/code', 'text', 'Example: BMC-1000') + sel('by', 'Recorded by · any reading', D.people.map(function (p) { return { v: p.username, t: p.name }; }), 'Everyone') +
@@ -103,6 +104,7 @@
     h += '<div class="tablewrap"><table><thead><tr><th>Test ID</th><th>Date</th><th>Template · product</th><th>Machine name/code</th><th>Mode</th><th>Current recorder</th><th>Recorded by</th><th class="r">Readings</th><th>Status</th><th class="r">Notes</th></tr></thead><tbody>';
     h += rows.map(function (t) {
       var status = T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished</span>' : '<span class="status run">Running</span>';
+      if (/-XL-\d+$/.test(t.test_id)) status += ' <span class="status">Imported</span>';
       if (t.to_check) status += ' <span class="status check">' + icon('warn', 14) + t.to_check + ' to check</span>';
       return '<tr class="click" data-act="openTest" data-id="' + esc(t.test_id) + '"><td class="num" style="font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</td><td class="num" style="white-space:nowrap">' + esc(U.dmy(t.started_at || t.date)) + '</td><td><strong>' + esc(t.template_name || '-') + '</strong><br><span class="muted" style="font-size:13px">' + esc(t.product) + '</span></td><td class="num">' + esc(t.machine_code) + '</td><td>' + esc(t.mode) + '</td><td>' + (t.status === 'finished' ? '<span class="muted">None</span>' : esc(name(t.current_recorder))) + '</td><td>' + esc(t.recorders.map(name).join(', ') || name(t.created_by)) + '</td><td class="r num" style="font-weight:700">' + t.readings + '</td><td style="white-space:nowrap">' + status + '</td><td class="r num">' + (t.notes || '') + '</td></tr>';
     }).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:28px">No tests match these filters.</td></tr>';
@@ -162,7 +164,7 @@
     if (!ui.statCol && ncols[0]) ui.statCol = (ncols.find(function (c) { return /°c/i.test(c.unit); }) || ncols[0]).id;
 
     var h = '<a class="dbtn sm noprint" href="#/tests" style="align-self:flex-start">' + icon('back', 16) + 'All tests</a>';
-    h += '<section class="between" style="flex-wrap:wrap;align-items:flex-start"><div class="col" style="gap:6px"><div class="row" style="flex-wrap:wrap"><h1 class="num" style="font-size:34px">' + esc(t.test_id) + '</h1>' + (T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished · Locked</span>' : '<span class="status run">Running</span>') + (toCheck.length ? '<span class="status check">' + icon('warn', 14) + toCheck.length + ' reading to check</span>' : '') + '</div><strong style="font-size:17px">' + esc(t.product) + ' · ' + esc(t.template_name) + '</strong><span class="muted">Machine <strong class="num" style="color:var(--ink)">' + esc(t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(t.mode || '-') + '</strong> · Recorders <strong style="color:var(--ink)">' + esc(Object.keys(recorders).map(name).join(', ') || name(t.created_by)) + '</strong> · <span class="num">' + esc(U.dmyhm(T.startOf(b))) + ' → ' + (t.ended_at ? esc(U.hhmm(t.ended_at)) : 'running') + '</span></span></div>' +
+    h += '<section class="between" style="flex-wrap:wrap;align-items:flex-start"><div class="col" style="gap:6px"><div class="row" style="flex-wrap:wrap"><h1 class="num" style="font-size:34px">' + esc(t.test_id) + '</h1>' + (T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished · Locked</span>' : '<span class="status run">Running</span>') + (toCheck.length ? '<span class="status check">' + icon('warn', 14) + toCheck.length + ' reading to check</span>' : '') + (t.setup && t.setup.imported ? '<span class="status">Imported</span>' : '') + '</div><strong style="font-size:17px">' + esc(t.product) + ' · ' + esc(t.template_name) + '</strong><span class="muted">Machine <strong class="num" style="color:var(--ink)">' + esc(t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(t.mode || '-') + '</strong> · Recorders <strong style="color:var(--ink)">' + esc(Object.keys(recorders).map(name).join(', ') || name(t.created_by)) + '</strong> · <span class="num">' + esc(U.dmyhm(T.startOf(b))) + ' → ' + (t.ended_at ? esc(U.hhmm(t.ended_at)) : 'running') + '</span></span></div>' +
       '<div class="row noprint"><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button><button type="button" class="dbtn primary" data-act="exportToggle">' + icon('excel', 18) + 'Export to Excel</button>' + (!T.isDeleted(t) && (reviewer() || recorders[S().current] || t.created_by === S().current) ? '<button type="button" class="dbtn" data-act="delToggle">' + icon('trash', 18) + 'Delete test</button>' : '') + '<button type="button" class="dbtn" data-act="pdf">' + icon('pdf', 18) + 'Export PDF</button></div></section>';
     if (ui.delOpen) h += '<section class="panel noprint" style="border-color:var(--bad)"><h2 style="font-size:16px">Delete this test?</h2><span class="muted" style="font-size:13px">The test is locked and hidden from the lists. The data stays in the Google Sheet. It shows under Status, Deleted.</span><label class="col" style="gap:4px;font-weight:800;font-size:13px">Reason<textarea class="din" id="del-reason" placeholder="Example: Wrong machine was connected."></textarea></label><div class="row"><button type="button" class="dbtn bad" data-act="delDo"' + (ui.busy ? ' disabled' : '') + '>' + icon('trash', 16) + 'Yes, delete test</button><button type="button" class="dbtn" data-act="delToggle">No, go back</button></div></section>';
     if (ui.exportOpen) {
@@ -183,9 +185,9 @@
         (Object.keys(groups).map(function (u) { return chart(b, u, groups[u], colorOf); }).join('') || '<p class="muted">Pick 1 or more columns.</p>') + '</section>';
     }
     // setup, recorders, events
-    var s = t.setup || {}, setupRows = [['Template', t.template_name], ['Product', t.product], ['Machine name/code', t.machine_code], ['Machine mode', t.mode], ['Date', U.dmy(t.date || t.started_at)], ].concat(T.setupFields(t.columns, t.product).map(function (f) { return [f.name, s[f.id] ? s[f.id] + (f.unit ? ' ' + f.unit : '') : '']; })).concat([['Reading interval', t.interval_min ? t.interval_min + ' min' : ''], ['Alarm', t.interval_min ? (s.alarm === false ? 'Off' : 'On') : ''], ['Started on phone', t.phone]]);
+    var s = t.setup || {}, setupRows = [['Template', t.template_name], ['Product', t.product], ['Machine name/code', t.machine_code], ['Machine mode', t.mode], ['Date', U.dmy(t.date || t.started_at)], ].concat(T.setupFields(t.columns, t.product).map(function (f) { return [f.name, s[f.id] ? s[f.id] + (f.unit ? ' ' + f.unit : '') : '']; })).concat([['Reading interval', t.interval_min ? t.interval_min + ' min' : ''], ['Alarm', t.interval_min ? (s.alarm === false ? 'Off' : 'On') : ''], ['Started on phone', t.phone]]).concat(s.imported ? [['Imported from', s.imported.file]] : []);
     var setupPhotos = b.photos.filter(function (p) { return !p.reading_id; });
-    var events = b.events.filter(function (e) { return ['compressor_on', 'compressor_off', 'handover', 'takeover', 'interval', 'column_added', 'setup', 'finish'].indexOf(e.kind) >= 0; }).sort(function (x, y) { return (x.time || '').localeCompare(y.time || ''); });
+    var events = b.events.filter(function (e) { return ['compressor_on', 'compressor_off', 'handover', 'takeover', 'interval', 'column_added', 'setup', 'finish', 'imported'].indexOf(e.kind) >= 0; }).sort(function (x, y) { return (x.time || '').localeCompare(y.time || ''); });
     h += '<section class="two"><div class="panel"><h2>Setup</h2><div class="kv">' + setupRows.map(function (r) { return '<span>' + r[0] + '</span><span>' + (r[1] ? esc(r[1]) : '<span class="muted">-</span>') + '</span>'; }).join('') + '</div>' +
       '<h3 style="font-size:15px;margin-top:6px">Recorders · ' + Object.keys(recorders).length + '</h3>' + (Object.keys(recorders).map(function (u) { var nos = b.readings.filter(function (r) { return r.by === u; }).map(function (r) { return r.no; }); return '<div class="row"><span class="avatar sm">' + esc(U.initials(name(u))) + '</span><strong>' + esc(name(u)) + '</strong><span class="muted"><span class="num">' + recorders[u] + '</span> readings · No. ' + Math.min.apply(null, nos) + ' to ' + Math.max.apply(null, nos) + '</span></div>'; }).join('') || '<span class="muted">No readings yet.</span>') +
       (setupPhotos.length ? '<h3 style="font-size:15px;margin-top:6px">Setup photos · ' + setupPhotos.length + '</h3><div>' + setupPhotos.map(function (p, i) { return photoThumb(p, 'Setup photo ' + (i + 1)); }).join('') + '</div>' : '') +
@@ -239,6 +241,53 @@
     if (!p) return '';
     return '<section class="viewer" role="dialog" aria-modal="true" aria-label="Photo"><div class="between"><div class="col"><strong style="font-size:18px">' + esc(p.label) + ' · photo ' + (i + 1) + ' of ' + list.length + '</strong><span style="font-size:14px;color:#B9C3CD"><span class="num">' + esc(b.test.test_id) + '</span> · Taken by ' + esc(name(p.by)) + ' · <span class="num">' + esc(U.dmyhm(p.taken_at)) + '</span></span></div><div class="row"><a id="viewer-dl" class="dbtn" style="background:transparent;color:#F1F4F7;border-color:rgba(255,255,255,.45)" download="' + esc(p.name || p.photo_id + '.jpg') + '">' + icon('download', 18) + 'Download</a><button type="button" data-act="viewerClose" aria-label="Close photo">' + icon('close', 22) + '</button></div></div>' +
       '<div class="row" style="flex:1;min-height:0;gap:16px"><button type="button" data-act="viewerStep" data-d="-1" aria-label="Previous photo"' + (i ? '' : ' disabled style="opacity:.3"') + '>' + icon('chevLeft', 26) + '</button><div id="viewer-img" style="flex:1;align-self:stretch;min-height:0;display:grid;place-items:center">' + spin() + '</div><button type="button" data-act="viewerStep" data-d="1" aria-label="Next photo"' + (i < list.length - 1 ? '' : ' disabled style="opacity:.3"') + '>' + icon('chevron', 26) + '</button></div></section>';
+  }
+
+  /* ---------- Backup of all data (reviewer only) ---------- */
+  // One Excel file with one sheet for each data tab of the Google Sheet, exactly as stored, plus two extra sheets:
+  //   About         - when, by whom, and how many rows each sheet has
+  //   Readings long - one row for each value of each reading, with the column name and unit, ready to filter or pivot
+  function backupExcel(r) {
+    var wb = new ExcelJS.Workbook(), n = 0, NUM = { no: 1, interval_min: 1, comp_on_min: 1, bytes: 1, tests_made: 1, sort: 1 }, MAX = 32000;
+    function cell(v) { v = v === undefined || v === null ? '' : v; return typeof v === 'string' && v.length > MAX ? v.slice(0, MAX) : v; }
+    function sheet(title, head, rows, wide) {
+      var ws = wb.addWorksheet(title);
+      if (!rows.length) rows = [head.map(function () { return ''; })];
+      ws.addTable({ name: 'B' + (++n) + '_' + title.replace(/\W/g, ''), ref: 'A1', headerRow: true, style: { theme: 'TableStyleLight1', showRowStripes: false }, columns: head.map(function (x) { return { name: x, filterButton: true }; }), rows: rows });
+      head.forEach(function (x, i) { var c = ws.getColumn(i + 1); c.width = (wide && wide[x]) || Math.max(12, Math.min(28, x.length + 6)); c.font = { name: 'Arial', size: 10 }; });
+      ws.getRow(1).font = { name: 'Arial', size: 10, bold: true };
+      return ws;
+    }
+    var names = Object.keys(r.tabs), about = [['Backup made at', U.dmyhm(r.at)], ['Made by', r.by], ['App build', T.BUILD], ['Photos', 'Photo files stay in Google Drive. The Photos sheet has a link to each one.'], ['Not in this file', 'Passwords, sign-in records and housekeeping tabs']];
+    names.forEach(function (name) { about.push(['Rows in ' + name, r.tabs[name].rows.length]); });
+    var aboutWs = sheet('About', ['Item', 'Value'], about, { Item: 26, Value: 70 });
+    // Readings long: join each reading to its test's columns
+    var tests = {}, T_ = r.tabs.Tests, R_ = r.tabs.Readings, ti = {}, ri = {};
+    T_.head.forEach(function (h, i) { ti[h] = i; }); R_.head.forEach(function (h, i) { ri[h] = i; });
+    T_.rows.forEach(function (row) { var cols = []; try { cols = JSON.parse(row[ti.columns_json] || '[]'); } catch (e) {} tests[row[ti.test_id]] = { cols: cols, machine: row[ti.machine_code], product: row[ti.product], mode: row[ti.mode], template: row[ti.template_name] }; });
+    var long = [];
+    R_.rows.forEach(function (row) {
+      var t = tests[row[ri.test_id]] || { cols: [] }, vals = {}; try { vals = JSON.parse(row[ri.values_json] || '{}'); } catch (e) {}
+      t.cols.forEach(function (c) {
+        var v = vals[c.id]; if (v === undefined || v === '') return;
+        long.push([row[ri.test_id], t.machine || '', t.product || '', t.mode || '', Number(row[ri.no]), xdate(row[ri.time]), row[ri.by], c.name, c.unit || '', c.type === 'number' && U.num(v) !== null ? U.num(v) : v, row[ri.late] === 'true' ? 'Yes' : '', row[ri.use] || '']);
+      });
+    });
+    var lw = sheet('Readings long', ['test_id', 'machine', 'product', 'mode', 'reading_no', 'time', 'recorded_by', 'column', 'unit', 'value', 'after_handover', 'reviewer_pick'], long, { test_id: 18, machine: 22, column: 24, time: 19 });
+    lw.getColumn(6).numFmt = 'dd-mmm-yyyy hh:mm';
+    names.forEach(function (name) {
+      var tab = r.tabs[name], head = tab.head.slice(), fi = head.indexOf('file_id');
+      var rows = tab.rows.map(function (row) { return row.map(function (v, i) { return NUM[head[i]] && v !== '' && !isNaN(Number(v)) ? Number(v) : cell(v); }); });
+      if (name === 'Photos' && fi >= 0) { head.push('link'); rows.forEach(function (row) { row.push(row[fi] ? { text: 'Open in Google Drive', hyperlink: 'https://drive.google.com/file/d/' + row[fi] + '/view' } : ''); }); }
+      sheet(name, head, rows, { setup_json: 50, columns_json: 60, values_json: 50, values_text: 60, text: 50, note: 40, final_remarks: 40, test_id: 18, reading_id: 38 });
+    });
+    aboutWs.getColumn(2).alignment = { horizontal: 'left' };
+    return wb.xlsx.writeBuffer().then(function (buf) {
+      var d = new Date(), stamp = d.getFullYear() + '-' + U.pad(d.getMonth() + 1) + '-' + U.pad(d.getDate()) + '_' + U.pad(d.getHours()) + U.pad(d.getMinutes());
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = 'Freezigo_Test_Log_backup_' + stamp + '.xlsx';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      return long.length;
+    });
   }
 
   /* ---------- Excel export ---------- */
@@ -337,6 +386,54 @@
     return shell(h, 'people', true);
   }
 
+  /* ---------- import one old test from an Excel file (build 12) ---------- */
+  function saveAs(buf, fileName) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = fileName;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+  }
+  function issueTable(list, title, cls) {
+    return '<div class="panel"' + (cls ? ' style="border-color:var(--' + cls + ')"' : '') + '><h2 style="font-size:16px">' + title + ' <span class="num">' + list.length + '</span></h2><div class="tablewrap" style="border:0"><table><thead><tr><th style="width:34%">Where</th><th>What</th></tr></thead><tbody>' +
+      list.map(function (e) { return '<tr><td class="num">' + esc(e.where) + '</td><td>' + esc(e.msg) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+  }
+  function importScreen() {
+    var back = '<a class="dbtn sm noprint" href="#/tests" style="align-self:flex-start">' + icon('back', 16) + 'All tests</a><h1>Import test from Excel</h1>';
+    if (!canTemplates()) return shell(back + '<div class="panel">Only a reviewer or an engineer can import a test.</div>', 'tests');
+    if (!D.tests) return shell(back + '<div class="panel">' + spin() + ' Loading…</div>', 'tests');
+    if (!ui.impTpl || !D.templates.some(function (t) { return t.id === ui.impTpl; })) ui.impTpl = (D.templates[0] || {}).id || '';
+    var h = back, r = ui.imp;
+    h += '<section class="panel"><h2 style="font-size:16px">1. Blank Excel format</h2><div class="row" style="flex-wrap:wrap;align-items:flex-end"><label class="col" style="gap:4px;font-weight:700;font-size:13px">Template<select class="din" data-in="impTpl" style="min-width:280px">' + D.templates.map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === ui.impTpl ? ' selected' : '') + '>' + esc(t.product + ' · ' + t.name) + '</option>'; }).join('') + '</select></label>' +
+      '<button type="button" class="dbtn" data-act="impBlank"' + (ui.impTpl ? '' : ' disabled') + '>' + icon('download', 18) + 'Download blank Excel format</button></div></section>';
+    h += '<section class="panel"><h2 style="font-size:16px">2. Filled Excel file · one file is one test</h2><input type="file" id="imp-file" accept=".xlsx" class="din" style="max-width:520px;height:auto;padding:10px">' + (ui.impBusy === 'check' ? '<div class="row">' + spin() + ' Checking the file…</div>' : '') + '</section>';
+    if (r) {
+      var ok = !r.errors.length;
+      h += '<section class="panel" style="border-color:var(--' + (ok ? 'ok' : 'bad') + ')"><h2 style="font-size:16px">3. Check result · <span class="num">' + esc(r.fileName) + '</span></h2><div class="msg' + (ok ? ' ok' : '') + '" role="status">' + (ok ? 'No errors. ' + r.readings.length + ' readings are ready to import.' + (r.warnings.length ? ' Read the ' + r.warnings.length + ' warning(s) first.' : '') : r.errors.length + ' error(s). Nothing was imported. Correct the file and choose it again.') + '</div>';
+      if (ok) {
+        var t = r.test, cols = T.readingColumns(t.columns).filter(function (c) { return c.on !== false; }), filled = {}; r.readings.forEach(function (x) { Object.keys(x.values).forEach(function (k) { filled[k] = (filled[k] || 0) + 1; }); });
+        var sf = T.setupFields(t.columns, t.product).filter(function (f) { return t.setup[f.id]; }).map(function (f) { return [f.name, t.setup[f.id] + (f.unit ? ' ' + f.unit : '')]; });
+        var kv = [['New Test ID', t.test_id], ['Template', t.product + ' · ' + t.template_name], ['Machine name/code', t.machine_code], ['Machine mode', t.mode], ['Start', U.dmyhm(t.started_at)], ['End', U.dmyhm(r.finish.ended_at)], ['Readings', r.readings.length], ['Reading interval', t.interval_min ? t.interval_min + ' min' : '']].concat(sf).concat([['Compressor on-time', r.finish.comp_on_min === null ? '' : r.finish.comp_on_min + ' min'], ['Compressor events', r.events.length || ''], ['Setup notes', t.setup.notes], ['Final remarks', r.finish.final_remarks], ['Recorded by', T.me().name], ['After import', 'Finished · Locked']]);
+        h += '<div class="kv">' + kv.map(function (x) { return '<span>' + esc(x[0]) + '</span><span>' + (x[1] !== '' && x[1] !== undefined && x[1] !== null ? esc(x[1]) : '<span class="muted">-</span>') + '</span>'; }).join('') + '</div>';
+        h += '<div class="row"><button type="button" class="dbtn primary" data-act="impDo"' + (ui.impBusy ? ' disabled' : '') + '>' + (ui.impBusy === 'send' ? spin() : icon('check', 18)) + 'Import this test</button><button type="button" class="dbtn" data-act="impClear"' + (ui.impBusy ? ' disabled' : '') + '>Cancel</button>' + (ui.impBusy === 'send' ? '<span class="muted num">' + (ui.impSent || 0) + ' of ' + r.ops.length + ' sent</span>' : '') + '</div>';
+        h += '</section>';
+        if (r.warnings.length) h += issueTable(r.warnings, 'Warnings', 'warn');
+        h += '<div class="panel"><h2 style="font-size:16px">Readings as they will be saved <span class="num">' + r.readings.length + '</span></h2><div class="tablewrap" style="max-height:520px;overflow:auto"><table><thead><tr><th class="r">No.</th><th>Time</th>' + cols.map(function (c) { return '<th class="r">' + esc(T.imp.head(c)) + '<br><span class="muted num" style="font-weight:400">' + (filled[c.id] || 0) + ' filled</span></th>'; }).join('') + '<th>Note</th></tr></thead><tbody>' +
+          r.readings.map(function (x, i) { return '<tr><td class="r num">' + (i + 1) + '</td><td class="num" style="white-space:nowrap">' + esc(x.time.slice(0, 10) === t.date ? U.hhmm(x.time) : U.dmyhm(x.time)) + '</td>' + cols.map(function (c) { return '<td class="r num">' + (x.values[c.id] === undefined ? '' : esc(x.values[c.id])) + '</td>'; }).join('') + '<td>' + esc(x.note) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+      } else {
+        h += '</section>' + issueTable(r.errors, 'Errors', 'bad');
+        if (r.warnings.length) h += issueTable(r.warnings, 'Warnings', 'warn');
+      }
+    }
+    return shell(h, 'tests');
+  }
+  function impSend(ops, from) {
+    var part = ops.slice(from, from + 200);
+    if (!part.length) return Promise.resolve();
+    return call('sync', { phone: 'XL', nopull: true, ops: part }).then(function (res) {
+      if (res.rejected && res.rejected.length) throw new Error(res.rejected[0].error);
+      ui.impSent = from + part.length; render();
+      return impSend(ops, from + 200);
+    });
+  }
+
   /* ---------- render and events ---------- */
   function render() {
     var st = S(), p = parts(), html;
@@ -345,6 +442,7 @@
     else if (p[0] === 't' && p[1]) html = reportScreen();
     else if (p[0] === 'templates') html = templatesScreen();
     else if (p[0] === 'people') html = peopleScreen();
+    else if (p[0] === 'import') html = importScreen();
     else html = testsScreen();
     root.innerHTML = '<div class="fz dk">' + html + '</div>';
     window.scrollTo(0, y);
@@ -371,6 +469,24 @@
       });
     },
     exportToggle: function () { ui.exportOpen = !ui.exportOpen; render(); },
+    backup: function () {
+      ui.backing = true; ui.err = ''; render();
+      call('backup').then(backupExcel).then(function () { ui.backing = false; ui.msg = 'Backup saved to your Downloads folder.'; render(); }, function (e) {
+        ui.backing = false; ui.err = /Unknown action/.test(e.message) ? 'The Google script is old. Update it first, then back up.' : 'Backup failed. ' + e.message; render();
+      });
+    },
+    impBlank: function () {
+      var tpl = D.templates.find(function (t) { return t.id === ui.impTpl; }), product = D.products.find(function (p) { return p.id === tpl.product; });
+      T.imp.blank(tpl, product).then(function (buf) { saveAs(buf, 'Test_Log_import_format_' + (tpl.product + '_' + tpl.name).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '') + '.xlsx'); }, function (e) { ui.err = 'Could not make the file. ' + e.message; render(); });
+    },
+    impClear: function () { ui.imp = null; render(); },
+    impDo: function () {
+      var r = ui.imp; if (!r || r.errors.length || ui.impBusy) return;
+      ui.impBusy = 'send'; ui.impSent = 0; ui.err = ''; render();
+      impSend(r.ops, 0).then(function () { ui.impBusy = false; ui.imp = null; D.tests = null; D.bundle = null; ui.msg = 'Test imported. It is finished and locked.'; go('t/' + encodeURIComponent(r.test.test_id)); }, function (e) {
+        ui.impBusy = false; ui.err = 'Import stopped. ' + e.message + ' Press Import again to send the rest.'; render();
+      });
+    },
     excel: function () { exportExcel().catch(function (e) { ui.err = 'Excel export failed. ' + e.message; render(); }); },
     pdf: function () { ui.printing = true; render(); setTimeout(function () { window.print(); ui.printing = false; render(); }, 400); },
     series: function (el) { ui.series[el.dataset.c] = !ui.series[el.dataset.c]; render(); },
@@ -448,6 +564,14 @@
   });
   root.addEventListener('change', function (ev) {
     var el = ev.target, u = el.dataset && el.dataset.role;
+    if (el.id === 'imp-file' && el.files && el.files[0]) {
+      var file = el.files[0];
+      ui.imp = null; ui.impBusy = 'check'; ui.err = ''; ui.msg = ''; render();
+      return file.arrayBuffer().then(function (buf) { return T.imp.parse(buf, { templates: D.templates, products: D.products, tests: D.tests, fileName: file.name }); }).then(function (r) {
+        if (!r.errors.length) r.ops = T.imp.ops(r, T.me().name);
+        ui.imp = r; ui.impBusy = false; render();
+      }, function (e) { ui.impBusy = false; ui.err = 'Could not read the file. ' + e.message; render(); });
+    }
     if (!u) return;
     push('person.save', { person: { username: u, role: el.value } }).then(function () { ui.msg = name(u) + ' is now ' + T.roleName(el.value) + '. It applies at their next sync.'; return reload(); }).catch(function () { reload(); });
   });
@@ -457,6 +581,7 @@
     if (el.dataset.f) { ui.filters[el.dataset.f] = el.value; if (el.dataset.f === 'product') ui.filters.mode = ''; ui.page = 0; clearTimeout(filterTimer); filterTimer = setTimeout(render, el.tagName === 'SELECT' || el.type === 'date' ? 0 : 250); }
     else if (el.dataset.in === 'tplSearch') { ui.tplSearch = el.value; clearTimeout(filterTimer); filterTimer = setTimeout(render, 250); }
     else if (el.dataset.in === 'statCol') { ui.statCol = el.value; render(); }
+    else if (el.dataset.in === 'impTpl') { ui.impTpl = el.value; }
     else if (el.dataset.tp) { var k = el.dataset.tp; ui.tpl[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'product') { ui.tpl.default_mode = ''; render(); } }
     else if (el.dataset.tc) { var c = ui.tpl[el.dataset.g][Number(el.dataset.i)], f = el.dataset.tc; if (f === 'on') c.on = el.checked; else if (f === 'options') c.options = el.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); else c[f] = el.value; if (f === 'type') render(); }
   });

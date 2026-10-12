@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 10;
+  var BUILD = 12;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 

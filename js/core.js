@@ -1,7 +1,7 @@
 /* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
 (function () {
   'use strict';
-  var BUILD = 12;
+  var BUILD = 13;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -259,6 +259,9 @@
     var base = toDate(last);
     return base ? new Date(base.getTime() + t.interval_min * 60000) : null;
   }
+  // Complete or partial test (build 13): '' means not marked yet.
+  function coverage(t) { return (t && (t.coverage || (t.setup && t.setup.coverage))) || ''; }
+  function coverageName(c) { return c === 'complete' ? 'Complete test' : c === 'partial' ? 'Partial test' : ''; }
   var ROLES = { reviewer: 'Reviewer', engineer: 'Engineer', technician: 'Technician' };
   function roleName(r) { return ROLES[r] || 'Technician'; }
   /**
@@ -567,7 +570,7 @@
     on: function (f) { listeners.push(f); }, emit: emit, load: load, save: save, me: me, personName: personName,
     api: api, signIn: signIn, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
     act: act, sync: sync, scheduleSync: scheduleSync, pushNow: pushNow, syncState: syncState, waitingCount: waitingCount, pendingReadingIds: pendingReadingIds,
-    newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
+    coverage: coverage, coverageName: coverageName, newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
     compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder, testTitle: testTitle, startOf: startOf, roleName: roleName, isDeleted: isDeleted, predict: predict, decimalsOf: decimalsOf, LIMIT: LIMIT,
     addPhoto: addPhoto, photoSrc: photoSrc, testPhotos: testPhotos, photosDb: photosDb,
     u: { pad: pad, localISO: localISO, toDate: toDate, hhmm: hhmm, dmy: dmy, dm: dm, dmhm: dmhm, dmyhm: dmyhm, minsBetween: minsBetween, dur: dur, hm: hm, uid: uid, esc: esc, initials: initials, num: num, icon: icon }

@@ -37,6 +37,12 @@
       return call('sync', { ops: [], since: '9999' }).then(function (r) { if (r.user && T.me().role !== r.user.role) { T.me().role = r.user.role; T.me().name = r.user.name; T.save(); }   // a role changed by a reviewer applies here
         D.people = r.data.people; D.products = r.data.products; D.templates = r.data.templates; D.phones = r.data.phones || []; D.meta = true; render(); }, fail);
     }
+    if (p[0] === 'compare' && p[1] && p[2]) {
+      D.bundle = null;
+      if (D.cmp && D.cmp.A.test.test_id === p[1] && D.cmp.B.test.test_id === p[2]) return render();
+      D.cmp = null; ui.cmp = null; render();
+      return Promise.all([call('getTest', { test_id: p[1] }), call('getTest', { test_id: p[2] })]).then(function (r) { D.cmp = { A: r[0].bundle, B: r[1].bundle }; render(); }, fail);
+    }
     if (p[0] === 'import') { D.tests = null; ui.imp = null; ui.impBusy = false; }
     render();
     return call('listTests').then(function (r) { setList(r); render(); }, fail);
@@ -75,6 +81,7 @@
       if (f.template && t.template_name !== f.template) return false;
       if (f.machine && (t.machine_code || '').toLowerCase().indexOf(f.machine.toLowerCase()) < 0) return false;
       if (f.by && t.recorders.indexOf(f.by) < 0 && t.created_by !== f.by) return false;
+      if (f.coverage && (T.coverage(t) || 'none') !== f.coverage) return false;
       var del = T.isDeleted(t);
       if (f.status === 'deleted' ? !del : del) return false;          // deleted tests show only when asked for
       if (f.status && f.status !== 'deleted' && t.status !== f.status) return false;
@@ -99,15 +106,17 @@
     h += '<section class="panel noprint"><div class="filters">' + inp('q', 'Search tests', 'search', 'Test ID, template, machine') + inp('from', 'Date from', 'date') + inp('to', 'Date to', 'date') +
       sel('product', 'Product', D.products.map(function (p) { return p.name; }), 'All products') + sel('mode', 'Mode' + (prod ? ' · of ' + esc(prod.name) : ''), modes, 'All modes') + sel('template', 'Template', tnames, 'All templates') +
       inp('machine', 'Machine name/code', 'text', 'Example: BMC-1000') + sel('by', 'Recorded by · any reading', D.people.map(function (p) { return { v: p.username, t: p.name }; }), 'Everyone') +
-      sel('status', 'Status', [{ v: 'running', t: 'Running' }, { v: 'finished', t: 'Finished' }, { v: 'deleted', t: 'Deleted' }], 'All') + '</div>' +
+      sel('status', 'Status', [{ v: 'running', t: 'Running' }, { v: 'finished', t: 'Finished' }, { v: 'deleted', t: 'Deleted' }], 'All') + sel('coverage', 'Test type', [{ v: 'complete', t: 'Complete test' }, { v: 'partial', t: 'Partial test' }, { v: 'none', t: 'Not marked' }], 'All') + '</div>' +
       '<div class="between"><span class="muted" style="font-size:13px">Showing <strong class="num">' + (list.length ? ui.page * PER_PAGE + 1 : 0) + '–' + Math.min(list.length, (ui.page + 1) * PER_PAGE) + '</strong> of <strong class="num">' + list.length + '</strong> · Click a row to open the report</span>' + (used ? '<button type="button" class="dbtn sm" data-act="clearFilters">' + icon('close', 14) + 'Clear all filters</button>' : '') + '</div></section>';
-    h += '<div class="tablewrap"><table><thead><tr><th>Test ID</th><th>Date</th><th>Template · product</th><th>Machine name/code</th><th>Mode</th><th>Current recorder</th><th>Recorded by</th><th class="r">Readings</th><th>Status</th><th class="r">Notes</th></tr></thead><tbody>';
+    h += selBar();
+    h += '<div class="tablewrap"><table><thead><tr><th class="noprint" style="width:36px;cursor:pointer" data-act="selPage" title="Select all on this page"><input type="checkbox" aria-label="Select all on this page" style="pointer-events:none;width:18px;height:18px"' + (rows.length && rows.every(function (t) { return (ui.sel || {})[t.test_id]; }) ? ' checked' : '') + '></th><th>Test ID</th><th>Date</th><th>Template · product</th><th>Machine name/code</th><th>Mode</th><th>Current recorder</th><th>Recorded by</th><th class="r">Readings</th><th>Status</th><th class="r">Notes</th></tr></thead><tbody>';
     h += rows.map(function (t) {
       var status = T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished</span>' : '<span class="status run">Running</span>';
       if (/-XL-\d+$/.test(t.test_id)) status += ' <span class="status">Imported</span>';
       if (t.to_check) status += ' <span class="status check">' + icon('warn', 14) + t.to_check + ' to check</span>';
-      return '<tr class="click" data-act="openTest" data-id="' + esc(t.test_id) + '"><td class="num" style="font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</td><td class="num" style="white-space:nowrap">' + esc(U.dmy(t.started_at || t.date)) + '</td><td><strong>' + esc(t.template_name || '-') + '</strong><br><span class="muted" style="font-size:13px">' + esc(t.product) + '</span></td><td class="num">' + esc(t.machine_code) + '</td><td>' + esc(t.mode) + '</td><td>' + (t.status === 'finished' ? '<span class="muted">None</span>' : esc(name(t.current_recorder))) + '</td><td>' + esc(t.recorders.map(name).join(', ') || name(t.created_by)) + '</td><td class="r num" style="font-weight:700">' + t.readings + '</td><td style="white-space:nowrap">' + status + '</td><td class="r num">' + (t.notes || '') + '</td></tr>';
-    }).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:28px">No tests match these filters.</td></tr>';
+      status += ' ' + covChip(t);
+      return '<tr class="click" data-act="openTest" data-id="' + esc(t.test_id) + '"><td class="noprint" data-act="selToggle" data-id="' + esc(t.test_id) + '"><input type="checkbox" aria-label="Select ' + esc(t.test_id) + '" style="pointer-events:none;width:18px;height:18px"' + ((ui.sel || {})[t.test_id] ? ' checked' : '') + '></td><td class="num" style="font-weight:700;white-space:nowrap">' + esc(t.test_id) + '</td><td class="num" style="white-space:nowrap">' + esc(U.dmy(t.started_at || t.date)) + '</td><td><strong>' + esc(t.template_name || '-') + '</strong><br><span class="muted" style="font-size:13px">' + esc(t.product) + '</span></td><td class="num">' + esc(t.machine_code) + '</td><td>' + esc(t.mode) + '</td><td>' + (t.status === 'finished' ? '<span class="muted">None</span>' : esc(name(t.current_recorder))) + '</td><td>' + esc(t.recorders.map(name).join(', ') || name(t.created_by)) + '</td><td class="r num" style="font-weight:700">' + t.readings + '</td><td style="white-space:nowrap">' + status + '</td><td class="r num">' + (t.notes || '') + '</td></tr>';
+    }).join('') || '<tr><td colspan="11" class="muted" style="text-align:center;padding:28px">No tests match these filters.</td></tr>';
     h += '</tbody></table></div>';
     if (pages > 1) h += '<div class="between noprint"><span class="muted">' + PER_PAGE + ' per page · page ' + (ui.page + 1) + ' of ' + pages + '</span><div class="row"><button type="button" class="dbtn sm" data-act="page" data-d="-1"' + (ui.page ? '' : ' disabled') + '>Previous</button><button type="button" class="dbtn sm" data-act="page" data-d="1"' + (ui.page < pages - 1 ? '' : ' disabled') + '>Next</button></div></div>';
     return shell(h, 'tests');
@@ -164,8 +173,9 @@
     if (!ui.statCol && ncols[0]) ui.statCol = (ncols.find(function (c) { return /°c/i.test(c.unit); }) || ncols[0]).id;
 
     var h = '<a class="dbtn sm noprint" href="#/tests" style="align-self:flex-start">' + icon('back', 16) + 'All tests</a>';
-    h += '<section class="between" style="flex-wrap:wrap;align-items:flex-start"><div class="col" style="gap:6px"><div class="row" style="flex-wrap:wrap"><h1 class="num" style="font-size:34px">' + esc(t.test_id) + '</h1>' + (T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished · Locked</span>' : '<span class="status run">Running</span>') + (toCheck.length ? '<span class="status check">' + icon('warn', 14) + toCheck.length + ' reading to check</span>' : '') + (t.setup && t.setup.imported ? '<span class="status">Imported</span>' : '') + '</div><strong style="font-size:17px">' + esc(t.product) + ' · ' + esc(t.template_name) + '</strong><span class="muted">Machine <strong class="num" style="color:var(--ink)">' + esc(t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(t.mode || '-') + '</strong> · Recorders <strong style="color:var(--ink)">' + esc(Object.keys(recorders).map(name).join(', ') || name(t.created_by)) + '</strong> · <span class="num">' + esc(U.dmyhm(T.startOf(b))) + ' → ' + (t.ended_at ? esc(U.hhmm(t.ended_at)) : 'running') + '</span></span></div>' +
+    h += '<section class="between" style="flex-wrap:wrap;align-items:flex-start"><div class="col" style="gap:6px"><div class="row" style="flex-wrap:wrap"><h1 class="num" style="font-size:34px">' + esc(t.test_id) + '</h1>' + (T.isDeleted(t) ? '<span class="status check">' + icon('trash', 14) + 'Deleted</span>' : t.status === 'finished' ? '<span class="status">' + icon('lock', 14) + 'Finished · Locked</span>' : '<span class="status run">Running</span>') + (toCheck.length ? '<span class="status check">' + icon('warn', 14) + toCheck.length + ' reading to check</span>' : '') + (t.setup && t.setup.imported ? '<span class="status">Imported</span>' : '') + (canTemplates() && t.status === 'finished' && !T.isDeleted(t) ? '' : covChip(t)) + '</div><strong style="font-size:17px">' + esc(t.product) + ' · ' + esc(t.template_name) + '</strong><span class="muted">Machine <strong class="num" style="color:var(--ink)">' + esc(t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(t.mode || '-') + '</strong> · Recorders <strong style="color:var(--ink)">' + esc(Object.keys(recorders).map(name).join(', ') || name(t.created_by)) + '</strong> · <span class="num">' + esc(U.dmyhm(T.startOf(b))) + ' → ' + (t.ended_at ? esc(U.hhmm(t.ended_at)) : 'running') + '</span></span></div>' +
       '<div class="row noprint"><button type="button" class="dbtn" data-act="refresh">' + icon('retry', 18) + 'Refresh</button><button type="button" class="dbtn primary" data-act="exportToggle">' + icon('excel', 18) + 'Export to Excel</button>' + (!T.isDeleted(t) && (reviewer() || recorders[S().current] || t.created_by === S().current) ? '<button type="button" class="dbtn" data-act="delToggle">' + icon('trash', 18) + 'Delete test</button>' : '') + '<button type="button" class="dbtn" data-act="pdf">' + icon('pdf', 18) + 'Export PDF</button></div></section>';
+    if (canTemplates() && t.status === 'finished' && !T.isDeleted(t)) h += '<section class="row" role="radiogroup" aria-label="Test type"><strong style="font-size:13px">Test type</strong>' + [['complete', 'Complete test'], ['partial', 'Partial test']].map(function (o) { return '<button type="button" role="radio" aria-checked="' + (T.coverage(t) === o[0]) + '" class="dbtn' + (T.coverage(t) === o[0] ? ' primary' : '') + '" data-act="mark" data-v="' + o[0] + '"' + (ui.busy ? ' disabled' : '') + '>' + (T.coverage(t) === o[0] ? icon('check', 16) : '') + o[1] + '</button>'; }).join('') + '</section>';
     if (ui.delOpen) h += '<section class="panel noprint" style="border-color:var(--bad)"><h2 style="font-size:16px">Delete this test?</h2><span class="muted" style="font-size:13px">The test is locked and hidden from the lists. The data stays in the Google Sheet. It shows under Status, Deleted.</span><label class="col" style="gap:4px;font-weight:800;font-size:13px">Reason<textarea class="din" id="del-reason" placeholder="Example: Wrong machine was connected."></textarea></label><div class="row"><button type="button" class="dbtn bad" data-act="delDo"' + (ui.busy ? ' disabled' : '') + '>' + icon('trash', 16) + 'Yes, delete test</button><button type="button" class="dbtn" data-act="delToggle">No, go back</button></div></section>';
     if (ui.exportOpen) {
       var items = [['Setup', 'Machine, mode, water, interval, setup notes'], ['Readings', 'One row for each reading. Time from start in hours, Recorded by, recorder note, reviewer note'], ['Edits', 'Every changed value: old value, new value, who, when'], ['Notes', 'Recorder notes and reviewer notes'], ['Events', 'Handovers and compressor ON/OFF taps'], ['Photos', 'One row for each photo with a link to the file in Google Drive']];
@@ -185,9 +195,9 @@
         (Object.keys(groups).map(function (u) { return chart(b, u, groups[u], colorOf); }).join('') || '<p class="muted">Pick 1 or more columns.</p>') + '</section>';
     }
     // setup, recorders, events
-    var s = t.setup || {}, setupRows = [['Template', t.template_name], ['Product', t.product], ['Machine name/code', t.machine_code], ['Machine mode', t.mode], ['Date', U.dmy(t.date || t.started_at)], ].concat(T.setupFields(t.columns, t.product).map(function (f) { return [f.name, s[f.id] ? s[f.id] + (f.unit ? ' ' + f.unit : '') : '']; })).concat([['Reading interval', t.interval_min ? t.interval_min + ' min' : ''], ['Alarm', t.interval_min ? (s.alarm === false ? 'Off' : 'On') : ''], ['Started on phone', t.phone]]).concat(s.imported ? [['Imported from', s.imported.file]] : []);
+    var s = t.setup || {}, setupRows = [['Template', t.template_name], ['Product', t.product], ['Machine name/code', t.machine_code], ['Machine mode', t.mode], ['Date', U.dmy(t.date || t.started_at)], ['Test type', T.coverageName(T.coverage(t))]].concat(T.setupFields(t.columns, t.product).map(function (f) { return [f.name, s[f.id] ? s[f.id] + (f.unit ? ' ' + f.unit : '') : '']; })).concat([['Reading interval', t.interval_min ? t.interval_min + ' min' : ''], ['Alarm', t.interval_min ? (s.alarm === false ? 'Off' : 'On') : ''], ['Started on phone', t.phone]]).concat(s.imported ? [['Imported from', s.imported.file]] : []);
     var setupPhotos = b.photos.filter(function (p) { return !p.reading_id; });
-    var events = b.events.filter(function (e) { return ['compressor_on', 'compressor_off', 'handover', 'takeover', 'interval', 'column_added', 'setup', 'finish', 'imported'].indexOf(e.kind) >= 0; }).sort(function (x, y) { return (x.time || '').localeCompare(y.time || ''); });
+    var events = b.events.filter(function (e) { return ['compressor_on', 'compressor_off', 'handover', 'takeover', 'interval', 'column_added', 'setup', 'finish', 'imported', 'coverage'].indexOf(e.kind) >= 0; }).sort(function (x, y) { return (x.time || '').localeCompare(y.time || ''); });
     h += '<section class="two"><div class="panel"><h2>Setup</h2><div class="kv">' + setupRows.map(function (r) { return '<span>' + r[0] + '</span><span>' + (r[1] ? esc(r[1]) : '<span class="muted">-</span>') + '</span>'; }).join('') + '</div>' +
       '<h3 style="font-size:15px;margin-top:6px">Recorders · ' + Object.keys(recorders).length + '</h3>' + (Object.keys(recorders).map(function (u) { var nos = b.readings.filter(function (r) { return r.by === u; }).map(function (r) { return r.no; }); return '<div class="row"><span class="avatar sm">' + esc(U.initials(name(u))) + '</span><strong>' + esc(name(u)) + '</strong><span class="muted"><span class="num">' + recorders[u] + '</span> readings · No. ' + Math.min.apply(null, nos) + ' to ' + Math.max.apply(null, nos) + '</span></div>'; }).join('') || '<span class="muted">No readings yet.</span>') +
       (setupPhotos.length ? '<h3 style="font-size:15px;margin-top:6px">Setup photos · ' + setupPhotos.length + '</h3><div>' + setupPhotos.map(function (p, i) { return photoThumb(p, 'Setup photo ' + (i + 1)); }).join('') + '</div>' : '') +
@@ -386,6 +396,114 @@
     return shell(h, 'people', true);
   }
 
+  /* ---------- select tests: compare 2, delete many (build 13) ---------- */
+  function selIds() { return Object.keys(ui.sel || {}).filter(function (k) { return ui.sel[k]; }); }
+  function selBar() {
+    var ids = selIds(); if (!ids.length) return '';
+    var h = '<section class="panel noprint" style="border-color:var(--ink)"><div class="between" style="flex-wrap:wrap"><strong><span class="num">' + ids.length + '</span> selected</strong><div class="row" style="flex-wrap:wrap">' +
+      '<button type="button" class="dbtn primary" data-act="cmpOpen"' + (ids.length === 2 ? '' : ' disabled') + '>' + 'Compare 2 tests</button>' +
+      (reviewer() ? '<button type="button" class="dbtn bad" data-act="bulkAsk">' + icon('trash', 18) + 'Delete selected</button>' : '') +
+      '<button type="button" class="dbtn" data-act="selClear">' + icon('close', 16) + 'Clear</button></div></div>';
+    if (ui.bulkOpen && reviewer()) h += '<label class="col" style="gap:4px;font-weight:800;font-size:13px">Reason · one reason for all ' + ids.length + ' tests<textarea class="din" id="bulk-reason" placeholder="Example: Trial entries made during training."></textarea></label><div class="num muted" style="font-size:13px">' + esc(ids.join(', ')) + '</div><div class="row"><button type="button" class="dbtn bad" data-act="bulkDo"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : icon('trash', 16)) + 'Yes, delete ' + ids.length + ' tests</button><button type="button" class="dbtn" data-act="bulkAsk">No, go back</button></div>';
+    return h + '</section>';
+  }
+  function covChip(t) { var c = T.coverage(t); return c ? '<span class="status"' + (c === 'partial' ? ' style="background:var(--mark-soft);border-color:var(--mark)"' : '') + '>' + T.coverageName(c) + '</span>' : ''; }
+
+  /* ---------- compare 2 tests on one graph (build 13) ---------- */
+  function colKey(c) { return (c.name + '|' + (c.unit || '')).toLowerCase(); }
+  /** The hour at which a line first reaches the value v. Straight line between two readings. null if never. */
+  function crossAt(pts, v) {
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i].y === v) return pts[i].x;
+      if (i && (pts[i - 1].y - v) * (pts[i].y - v) < 0) return pts[i - 1].x + (v - pts[i - 1].y) / (pts[i].y - pts[i - 1].y) * (pts[i].x - pts[i - 1].x);
+    }
+    return null;
+  }
+  /** The value of a line at the hour x. null outside the readings. */
+  function valueAt(pts, x) {
+    for (var i = 0; i < pts.length; i++) {
+      if (Math.abs(pts[i].x - x) < 1e-9) return pts[i].y;
+      if (i && pts[i - 1].x < x && x < pts[i].x) return pts[i - 1].y + (x - pts[i - 1].x) / (pts[i].x - pts[i - 1].x) * (pts[i].y - pts[i - 1].y);
+    }
+    return null;
+  }
+  function cmpSide(k) {
+    var b = D.cmp[k], cols = numCols(b), c = cols.find(function (x) { return x.id === ui.cmp['col' + k]; }) || null;
+    return { k: k, b: b, t: b.test, cols: cols, col: c, pts: c ? points(b, c) : [], off: Number(ui.cmp['off' + k]) || 0, color: k === 'A' ? '--s1' : '--s2' };
+  }
+  function cmpDefaults() {
+    var a = numCols(D.cmp.A), b = numCols(D.cmp.B), pick = a.find(function (c) { return /°c/i.test(c.unit) && b.some(function (x) { return colKey(x) === colKey(c); }); }) || a.find(function (c) { return b.some(function (x) { return colKey(x) === colKey(c); }); }) || a[0];
+    ui.cmp = { colA: pick ? pick.id : '', colB: '', offA: 0, offB: 0 };
+    cmpFollow();
+  }
+  function cmpFollow() {   // test B takes the column with the same name and unit as test A, when it has one
+    var a = numCols(D.cmp.A).find(function (c) { return c.id === ui.cmp.colA; }), b = numCols(D.cmp.B), m = a && b.find(function (x) { return colKey(x) === colKey(a); });
+    ui.cmp.colB = m ? m.id : (b.some(function (x) { return x.id === ui.cmp.colB; }) ? ui.cmp.colB : (b[0] || {}).id || '');
+  }
+  function cmpChart(A, B) {
+    var W = 1000, H = 360, L = 56, R = 16, Tp = 12, Bm = 34, sides = [A, B].map(function (s) { return { s: s, pts: s.pts.map(function (p) { return { x: p.x + s.off, y: p.y, r: p.r }; }) }; });
+    var all = sides.reduce(function (m, s) { return m.concat(s.pts); }, []);
+    if (!all.length) return '<p class="muted">No numbers to plot.</p>';
+    var xmax = Math.max(0.1, Math.max.apply(null, all.map(function (p) { return p.x; }))), xmin = Math.min(0, Math.min.apply(null, all.map(function (p) { return p.x; })));
+    var ymin = Math.min.apply(null, all.map(function (p) { return p.y; })), ymax = Math.max.apply(null, all.map(function (p) { return p.y; }));
+    if (ymin === ymax) { ymin -= 1; ymax += 1; }
+    var ys = niceStep(ymax - ymin, 6); ymin = Math.floor(ymin / ys) * ys; ymax = Math.ceil(ymax / ys) * ys;
+    var xs = niceStep(xmax - xmin, 8);
+    var X = function (x) { return L + ((x - xmin) / (xmax - xmin)) * (W - L - R); }, Y = function (y) { return Tp + (1 - (y - ymin) / (ymax - ymin)) * (H - Tp - Bm); }, g = '';
+    for (var y = ymin; y <= ymax + ys / 2; y += ys) g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(y).toFixed(1) + '" y2="' + Y(y).toFixed(1) + '" stroke="var(--grid)"/><text x="' + (L - 8) + '" y="' + (Y(y) + 4).toFixed(1) + '" text-anchor="end" font-size="12" fill="var(--ink-2)" font-family="var(--mono)">' + (+y.toFixed(6)) + '</text>';
+    for (var x = Math.ceil(xmin / xs) * xs; x <= xmax + 1e-9; x += xs) g += '<line x1="' + X(x).toFixed(1) + '" x2="' + X(x).toFixed(1) + '" y1="' + (H - Bm) + '" y2="' + (H - Bm + 5) + '" stroke="var(--axis)"/><text x="' + X(x).toFixed(1) + '" y="' + (H - Bm + 20) + '" text-anchor="middle" font-size="12" fill="var(--ink-2)" font-family="var(--mono)">' + (+x.toFixed(2)) + '</text>';
+    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + (H - Bm) + '" y2="' + (H - Bm) + '" stroke="var(--axis)"/>';
+    sides.forEach(function (sd) {
+      var col = 'var(' + sd.s.color + ')';
+      g += '<polyline fill="none" stroke="' + col + '" stroke-width="2.5" stroke-linejoin="round"' + (sd.s.k === 'B' ? ' stroke-dasharray="9 5"' : '') + ' points="' + sd.pts.map(function (p) { return X(p.x).toFixed(1) + ',' + Y(p.y).toFixed(1); }).join(' ') + '"/>';
+      g += sd.pts.map(function (p) { return '<circle cx="' + X(p.x).toFixed(1) + '" cy="' + Y(p.y).toFixed(1) + '" r="4" fill="' + col + '"><title>' + esc(sd.s.t.test_id + ' · ' + fmt(p.x) + ' h · ' + U.hhmm(p.r.time) + ' · ' + p.y + (sd.s.col.unit ? ' ' + sd.s.col.unit : '')) + '</title></circle>'; }).join('');
+    });
+    var legend = '<div class="chips" style="margin-bottom:6px">' + [A, B].map(function (s) { return '<span class="row" style="gap:6px;font-size:13px;font-weight:700"><i style="width:22px;height:0;border-top:4px ' + (s.k === 'B' ? 'dashed' : 'solid') + ' var(' + s.color + ');display:inline-block"></i>' + s.k + ' · ' + esc(s.t.test_id) + ' · ' + esc(T.imp.head(s.col)) + (s.off ? ' · starts at ' + fmt(s.off) + ' h' : '') + '</span>'; }).join('') + '</div>';
+    return '<div class="chart" data-chart="cmp" data-xmax="' + xmax + '">' + legend + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Line graph comparing two tests against hours">' + g + '<line class="cross" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/></svg><div class="muted" style="text-align:center;font-size:12px;font-weight:700">Hours</div></div>';
+  }
+  function compareScreen() {
+    var p = parts(), back = '<a class="dbtn sm noprint" href="#/tests" style="align-self:flex-start">' + icon('back', 16) + 'All tests</a><h1>Compare 2 tests</h1>';
+    if (!D.cmp || D.cmp.A.test.test_id !== p[1] || D.cmp.B.test.test_id !== p[2]) return shell(back + '<div class="panel">' + spin() + ' Loading the 2 tests…</div>', 'tests');
+    if (!ui.cmp) cmpDefaults();
+    var A = cmpSide('A'), B = cmpSide('B'), h = back;
+    var side = function (s) {
+      return '<div class="panel" style="border-top:5px solid var(' + s.color + ')"><div class="row" style="flex-wrap:wrap"><strong class="num" style="font-size:20px">' + s.k + ' · ' + esc(s.t.test_id) + '</strong>' + covChip(s.t) + '<a class="dbtn sm noprint" href="#/t/' + encodeURIComponent(s.t.test_id) + '">Open report</a></div><span class="muted">' + esc(s.t.product) + ' · ' + esc(s.t.template_name) + ' · Machine <strong class="num" style="color:var(--ink)">' + esc(s.t.machine_code || '-') + '</strong> · Mode <strong style="color:var(--ink)">' + esc(s.t.mode || '-') + '</strong> · <span class="num">' + esc(U.dmyhm(T.startOf(s.b))) + '</span></span>' +
+        '<div class="row noprint" style="flex-wrap:wrap;align-items:flex-end"><label class="col" style="gap:4px;font-weight:700;font-size:13px">Column<select class="din" data-in="cmpCol' + s.k + '" style="min-width:200px">' + s.cols.map(function (c) { return '<option value="' + esc(c.id) + '"' + (s.col && c.id === s.col.id ? ' selected' : '') + '>' + esc(T.imp.head(c)) + '</option>'; }).join('') + '</select></label>' +
+        '<label class="col" style="gap:4px;font-weight:700;font-size:13px">This test starts at (h)<input class="din num" type="number" step="0.01" data-in="cmpOff' + s.k + '" value="' + (+s.off.toFixed(2)) + '" style="width:150px"></label></div></div>';
+    };
+    h += '<section class="two">' + side(A) + side(B) + '</section>';
+    if (!A.col || !B.col) return shell(h + '<div class="panel">One of the tests has no number column.</div>', 'tests');
+    h += '<section class="panel noprint"><div class="row" style="flex-wrap:wrap"><button type="button" class="dbtn primary" data-act="cmpMatch">' + icon('swap', 18) + 'Match starting point</button><button type="button" class="dbtn" data-act="cmpReset">Both start at 0 h</button><button type="button" class="dbtn" data-act="pdf">' + icon('pdf', 18) + 'Export PDF</button>' + (ui.cmp.note ? '<span class="muted">' + esc(ui.cmp.note) + '</span>' : '') + '</div></section>';
+    h += '<section class="panel"><h2>Graph</h2>' + cmpChart(A, B) + '</section>';
+
+    // --- numbers side by side
+    var st = function (s) {
+      var en = T.energy(s.b), end = s.t.ended_at || U.localISO(), comp = s.t.comp_on_min !== null && s.t.comp_on_min !== undefined ? s.t.comp_on_min : (s.t.track_compressor ? T.compressor(s.b, end).totalMin : null), f = s.pts[0], l = s.pts[s.pts.length - 1], u = s.col.unit ? ' ' + s.col.unit : '';
+      return { 'Test type': T.coverageName(T.coverage(s.t)) || 'Not marked', 'Readings': T.usedReadings(s.b).length, 'Total time': U.dur(U.minsBetween(T.startOf(s.b), end)), 'Starts at': fmt(s.off) + ' h', 'Ends at': l ? fmt(l.x + s.off) + ' h' : '-',
+        'Start value': f ? f.y + u : '-', 'End value': l ? l.y + u : '-', 'Rate of change': f && l && l.x > f.x ? fmt((l.y - f.y) / (l.x - f.x)) + u + ' per hour' : '-', 'Total energy': en && en.total !== null ? fmt(en.total) + ' kWh' : '-', 'Compressor on-time': comp === null ? '-' : U.dur(comp) };
+    }, sa = st(A), sb = st(B);
+    h += '<section class="panel"><h2>Numbers</h2><div class="tablewrap" style="border:0"><table><thead><tr><th></th><th>A · <span class="num">' + esc(A.t.test_id) + '</span></th><th>B · <span class="num">' + esc(B.t.test_id) + '</span></th></tr></thead><tbody>' + Object.keys(sa).map(function (k) { return '<tr><td><strong>' + k + '</strong></td><td class="num">' + esc(sa[k]) + '</td><td class="num">' + esc(sb[k]) + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
+
+    // --- the same range in both tests: from one value to another value
+    var ys = function (s) { return s.pts.map(function (q) { return q.y; }); }, lo = Math.max(Math.min.apply(null, ys(A)), Math.min.apply(null, ys(B))), hi = Math.min(Math.max.apply(null, ys(A)), Math.max.apply(null, ys(B)));
+    if (A.pts.length > 1 && B.pts.length > 1 && hi > lo && colKey(A.col) === colKey(B.col)) {
+      var falling = A.pts[0].y > A.pts[A.pts.length - 1].y, from = falling ? hi : lo, to = falling ? lo : hi, u2 = A.col.unit ? ' ' + A.col.unit : '';
+      var span = function (s) {
+        var x1 = crossAt(s.pts, from), x2 = crossAt(s.pts, to); if (x1 === null || x2 === null) return null;
+        var en = T.energy(s.b), e = null;
+        if (en) { var ep = points(s.b, en.col), e1 = valueAt(ep, x1), e2 = valueAt(ep, x2); if (e1 !== null && e2 !== null) e = Math.abs(e2 - e1); }
+        return { h: Math.abs(x2 - x1), e: e };
+      }, ra = span(A), rb = span(B);
+      if (ra && rb) {
+        var diff = function (a, b, d, unit) { return a === null || b === null ? '-' : (Math.abs(a - b) < 1e-9 ? 'Same' : (a < b ? 'A' : 'B') + ' is lower by ' + fmt(Math.abs(a - b), d) + unit + (Math.max(a, b) ? ' (' + fmt(Math.abs(a - b) / Math.max(a, b) * 100, 0) + '%)' : '')); };
+        h += '<section class="panel"><h2>Same range · ' + esc(A.col.name) + ' from <span class="num">' + (+from.toFixed(2)) + '</span> to <span class="num">' + (+to.toFixed(2)) + esc(u2) + '</span></h2><div class="tablewrap" style="border:0"><table><thead><tr><th></th><th>A · <span class="num">' + esc(A.t.test_id) + '</span></th><th>B · <span class="num">' + esc(B.t.test_id) + '</span></th><th>Difference</th></tr></thead><tbody>' +
+          '<tr><td><strong>Time taken</strong></td><td class="num">' + fmt(ra.h) + ' h</td><td class="num">' + fmt(rb.h) + ' h</td><td>' + diff(ra.h, rb.h, 2, ' h') + '</td></tr>' +
+          '<tr><td><strong>Energy used</strong></td><td class="num">' + (ra.e === null ? '-' : fmt(ra.e) + ' kWh') + '</td><td class="num">' + (rb.e === null ? '-' : fmt(rb.e) + ' kWh') + '</td><td>' + diff(ra.e, rb.e, 2, ' kWh') + '</td></tr></tbody></table></div></section>';
+      }
+    }
+    return shell(h, 'tests');
+  }
+
   /* ---------- import one old test from an Excel file (build 12) ---------- */
   function saveAs(buf, fileName) {
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = fileName;
@@ -443,6 +561,7 @@
     else if (p[0] === 'templates') html = templatesScreen();
     else if (p[0] === 'people') html = peopleScreen();
     else if (p[0] === 'import') html = importScreen();
+    else if (p[0] === 'compare' && p[1] && p[2]) html = compareScreen();
     else html = testsScreen();
     root.innerHTML = '<div class="fz dk">' + html + '</div>';
     window.scrollTo(0, y);
@@ -486,6 +605,42 @@
       impSend(r.ops, 0).then(function () { ui.impBusy = false; ui.imp = null; D.tests = null; D.bundle = null; ui.msg = 'Test imported. It is finished and locked.'; go('t/' + encodeURIComponent(r.test.test_id)); }, function (e) {
         ui.impBusy = false; ui.err = 'Import stopped. ' + e.message + ' Press Import again to send the rest.'; render();
       });
+    },
+    selToggle: function (el) { ui.sel = ui.sel || {}; ui.sel[el.dataset.id] = !ui.sel[el.dataset.id]; ui.bulkOpen = false; render(); },
+    selPage: function () { ui.sel = ui.sel || {}; var rows = filtered().slice(ui.page * PER_PAGE, (ui.page + 1) * PER_PAGE), all = rows.every(function (t) { return ui.sel[t.test_id]; }); rows.forEach(function (t) { ui.sel[t.test_id] = !all; }); ui.bulkOpen = false; render(); },
+    selClear: function () { ui.sel = {}; ui.bulkOpen = false; render(); },
+    cmpOpen: function () { var ids = selIds(); if (ids.length === 2) go('compare/' + encodeURIComponent(ids[0]) + '/' + encodeURIComponent(ids[1])); },
+    bulkAsk: function () { ui.bulkOpen = !ui.bulkOpen; render(); },
+    bulkDo: function () {
+      var reason = document.getElementById('bulk-reason').value.trim(), now = U.localISO(), ids = selIds();
+      if (!reason) { ui.err = 'Write the reason first.'; return render(); }
+      var ops = ids.map(function (id) { return { op_id: U.uid(), type: 'test.delete', payload: { test_id: id, reason: reason, time: now, event_id: U.uid() } }; }), bad = [];
+      var send = function (from) {
+        var part = ops.slice(from, from + 50); if (!part.length) return Promise.resolve();
+        return call('sync', { nopull: true, ops: part }).then(function (r) { bad = bad.concat(r.rejected || []); return send(from + 50); });
+      };
+      ui.busy = true; ui.err = ''; render();
+      send(0).then(function () {
+        ui.busy = false; ui.bulkOpen = false; ui.sel = {}; D.tests = null;
+        if (bad.length) ui.err = bad.length + ' of ' + ids.length + ' tests were not deleted. ' + bad[0].error; else ui.msg = ids.length + ' tests deleted. They show under Status, Deleted.';
+        load();
+      }, function (e) { ui.busy = false; ui.err = 'Delete stopped. ' + e.message; D.tests = null; load(); });
+    },
+    mark: function (el) {
+      var t = D.bundle.test, v = T.coverage(t) === el.dataset.v ? '' : el.dataset.v;
+      push('test.mark', { test_id: t.test_id, coverage: v, time: U.localISO(), event_id: U.uid() }).then(function () { ui.msg = v ? 'Marked as ' + T.coverageName(v) + '.' : 'Mark removed.'; return reload(); }, function () {
+        if (/Unknown change/.test(ui.err)) { ui.err = 'The Google script is old. Update it first, then mark the test.'; render(); }
+      });
+    },
+    cmpReset: function () { ui.cmp.offA = 0; ui.cmp.offB = 0; ui.cmp.note = ''; render(); },
+    cmpMatch: function () {
+      var A = cmpSide('A'), B = cmpSide('B'), x;
+      if (!A.pts.length || !B.pts.length) return;
+      // The test that starts midway is moved: its first value is put on the line of the other test.
+      if ((x = crossAt(A.pts, B.pts[0].y)) !== null && x > 0) { ui.cmp.offA = 0; ui.cmp.offB = +x.toFixed(2); ui.cmp.note = 'B starts at ' + B.pts[0].y + '. A reaches ' + B.pts[0].y + ' at ' + fmt(x) + ' h.'; }
+      else if ((x = crossAt(B.pts, A.pts[0].y)) !== null && x > 0) { ui.cmp.offB = 0; ui.cmp.offA = +x.toFixed(2); ui.cmp.note = 'A starts at ' + A.pts[0].y + '. B reaches ' + A.pts[0].y + ' at ' + fmt(x) + ' h.'; }
+      else { ui.cmp.offA = 0; ui.cmp.offB = 0; ui.cmp.note = x === 0 ? 'Both tests start at the same value.' : 'No matching point. The start value of one test is not inside the other test. Type the hour by hand.'; }
+      render();
     },
     excel: function () { exportExcel().catch(function (e) { ui.err = 'Excel export failed. ' + e.message; render(); }); },
     pdf: function () { ui.printing = true; render(); setTimeout(function () { window.print(); ui.printing = false; render(); }, 400); },
@@ -572,6 +727,7 @@
         ui.imp = r; ui.impBusy = false; render();
       }, function (e) { ui.impBusy = false; ui.err = 'Could not read the file. ' + e.message; render(); });
     }
+    if (el.dataset.in === 'cmpOffA' || el.dataset.in === 'cmpOffB') { var hv = Number(el.value); ui.cmp[el.dataset.in === 'cmpOffA' ? 'offA' : 'offB'] = isFinite(hv) ? Math.max(-1000, Math.min(1000, hv)) : 0; ui.cmp.note = ''; return render(); }
     if (!u) return;
     push('person.save', { person: { username: u, role: el.value } }).then(function () { ui.msg = name(u) + ' is now ' + T.roleName(el.value) + '. It applies at their next sync.'; return reload(); }).catch(function () { reload(); });
   });
@@ -582,6 +738,7 @@
     else if (el.dataset.in === 'tplSearch') { ui.tplSearch = el.value; clearTimeout(filterTimer); filterTimer = setTimeout(render, 250); }
     else if (el.dataset.in === 'statCol') { ui.statCol = el.value; render(); }
     else if (el.dataset.in === 'impTpl') { ui.impTpl = el.value; }
+    else if (el.dataset.in === 'cmpColA' || el.dataset.in === 'cmpColB') { ui.cmp[el.dataset.in === 'cmpColA' ? 'colA' : 'colB'] = el.value; if (el.dataset.in === 'cmpColA') cmpFollow(); ui.cmp.note = ''; render(); }
     else if (el.dataset.tp) { var k = el.dataset.tp; ui.tpl[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'product') { ui.tpl.default_mode = ''; render(); } }
     else if (el.dataset.tc) { var c = ui.tpl[el.dataset.g][Number(el.dataset.i)], f = el.dataset.tc; if (f === 'on') c.on = el.checked; else if (f === 'options') c.options = el.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); else c[f] = el.value; if (f === 'type') render(); }
   });

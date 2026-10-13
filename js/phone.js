@@ -379,6 +379,9 @@
     if (finished) {
       var en = T.energy(b), comp = t.comp_on_min !== null && t.comp_on_min !== undefined ? t.comp_on_min : T.compressor(b).totalMin;
       h += '<div class="banner">' + icon('lock') + '<span><b>Finished and locked</b><br>' + esc(U.dmyhm(T.startOf(b))) + ' → ' + esc(U.hhmm(t.ended_at)) + '. Nobody can change this test.</span></div>';
+      var cov = T.coverage(t), canMark = T.me() && (T.me().role === 'reviewer' || T.me().role === 'engineer');
+      if (canMark) h += '<div class="seg" role="radiogroup" aria-label="Test type" style="grid-template-columns:1fr 1fr">' + [['complete', 'Complete test'], ['partial', 'Partial test']].map(function (o) { return '<button type="button" role="radio" aria-checked="' + (cov === o[0]) + '" data-act="markTest" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+      else if (cov) h += '<div><span class="chip mark">' + T.coverageName(cov) + '</span></div>';
       h += '<div class="grid2">' + stat('Total time', elapsedText(b)) + stat('Readings', b.readings.length) + (en && en.total !== null ? stat('Total energy', en.total.toFixed(2) + ' kWh') : '') + (t.track_compressor ? stat('Compressor on-time', U.dur(comp)) : '') + '</div>';
       var extra = b.notes.filter(function (n) { return !n.reading_id; }).sort(function (x, y) { return (x.at || '').localeCompare(y.at || ''); });
       h += '<section class="col" style="gap:8px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)"><h2 class="h-caps">Notes</h2>' +
@@ -793,6 +796,16 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
       inp.dispatchEvent(new Event('input', { bubbles: true }));
     },
     deleteSheet: function () { ui.sheet = { name: 'delete', reason: '' }; render(); },
+    markTest: function (el) {
+      var b = curTest(), v = T.coverage(b.test) === el.dataset.v ? '' : el.dataset.v;
+      if (!navigator.onLine) return toast('No internet. Try again with internet.', 'bad');
+      if (ui.busy) return;
+      ui.busy = true;
+      T.pushNow('test.mark', { test_id: b.test.test_id, coverage: v, time: U.localISO(), event_id: U.uid() }).then(function () {
+        b.test.setup = b.test.setup || {}; b.test.setup.coverage = v; b.test.coverage = v; T.save();
+        ui.busy = false; render(); toast(v ? 'Marked as ' + T.coverageName(v) + '.' : 'Mark removed.'); T.sync();
+      }, function (e) { ui.busy = false; toast(/Unknown change/.test(e.message) ? 'The Google script is old. Update it first.' : e.message, 'bad'); });
+    },
     doDelete: function () {
       var b = curTest(), st = S(), id = b.test.test_id, n = b.readings.length, reason = n ? (ui.sheet.reason || '').trim() : 'No readings';
       if (!reason) return toast('Write the reason first.', 'bad');

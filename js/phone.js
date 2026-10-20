@@ -92,7 +92,7 @@
     var right = mine ? '<span class="pill" data-tick="pill" data-id="' + esc(t.test_id) + '">' + pillText(due) + '</span>' : '<span class="pill">' + icon('eye', 16) + 'View only</span>';
     return '<button type="button" class="card' + (mine ? '' : ' viewer') + '" data-act="open" data-id="' + esc(t.test_id) + '">' +
       '<div class="between"><span class="ttl grow">' + esc(T.testTitle(t)) + '</span>' + right + '</div>' +
-      '<div class="muted" style="font-size:15px">' + esc([t.machine_code ? t.template_name : '', t.product, t.mode].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="muted" style="font-size:15px">' + esc([t.mode, t.product].filter(Boolean).join(' · ')) + '</div>' +
       '<span class="badge-rec' + (mine ? ' me' : '') + '">' + icon('person', 18) + '<span>Recorder: <strong>' + esc(T.personName(t.current_recorder)) + '</strong>' + (mine ? ' (you)' : '') + '</span></span>' +
       '<div class="between muted" style="font-size:15px"><span>Started ' + esc(U.dmhm(t.started_at)) + ' · <strong style="color:var(--ink)">' + b.readings.length + '</strong> readings</span>' + icon('chevron', 20) + '</div><span class="idref">' + esc(t.test_id) + '</span></button>';
   }
@@ -120,7 +120,7 @@
     h += '<section class="col" style="gap:10px"><div class="between"><h2 class="h-sec">Finished tests</h2>' + (finished.length > 3 ? '<button type="button" class="quiet" data-act="toggleFinished">' + (ui.allFinished ? 'Show less' : 'See all ' + finished.length) + '</button>' : '') + '</div>';
     h += shown.length ? shown.map(function (b) {
       var t = b.test;
-      return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="ttl" style="font-size:17px">' + esc(T.testTitle(t)) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div class="muted" style="font-size:14px">' + esc([t.machine_code ? t.template_name : '', t.product].filter(Boolean).join(' · ')) + ' · ' + b.readings.length + ' readings</div><span class="idref">' + esc(t.test_id) + '</span></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
+      return '<button type="button" class="card" style="flex-direction:row;align-items:center;gap:12px;min-height:76px" data-act="open" data-id="' + esc(t.test_id) + '"><div class="grow col" style="gap:2px"><div class="row" style="align-items:baseline;gap:10px"><span class="ttl" style="font-size:17px">' + esc(T.testTitle(t)) + '</span><span class="muted" style="font-size:14px;white-space:nowrap">' + esc(U.dmy(t.ended_at || t.started_at)) + '</span></div><div class="muted" style="font-size:14px">' + esc([t.mode, t.product].filter(Boolean).join(' · ')) + ' · ' + b.readings.length + ' readings</div><span class="idref">' + esc(t.test_id) + '</span></div><span class="col muted" style="align-items:center;gap:2px;font-size:12px;font-weight:700">' + icon('lock', 20) + 'Locked</span></button>';
     }).join('') : '<div class="empty">' + icon('lock', 32) + '<b>No finished tests yet</b></div>';
     h += '</section><p class="build">Build ' + T.BUILD + ' · Phone ' + esc(st.phone || '?') + '</p></main>';
     return h;

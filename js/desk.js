@@ -55,17 +55,17 @@
     var me = T.me();
     var nav = [['tests', 'Tests'], ['templates', 'Templates'], ['people', 'People']].map(function (n) { return '<a href="#/' + n[0] + '"' + (cur === n[0] ? ' aria-current="page"' : '') + '>' + n[1] + '</a>'; }).join('');
     return '<header class="top"><div><div class="brand"><small>FREEZIGO</small><b>Test Log</b></div><nav aria-label="Main">' + nav + '</nav>' +
-      '<div style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="avatar sm">' + esc(U.initials(me.name)) + '</span><span class="col" style="line-height:1.2"><strong>' + esc(me.name) + '</strong><span class="muted" style="font-size:12px">' + T.roleName(me.role) + '</span></span><a class="dbtn sm" href="index.html">Phone app</a><button type="button" class="dbtn sm" data-act="signOut">' + icon('logout', 16) + 'Sign out</button></div></div></header>' +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="avatar sm">' + esc(U.initials(me.name)) + '</span><span class="col" style="line-height:1.2"><strong>' + esc(me.name) + '</strong><span class="muted" style="font-size:12px">' + T.roleName(me.role) + '</span></span><a class="dbtn sm" href="' + esc(T.cfg.erpUrl || '../') + '">ERP</a><a class="dbtn sm" href="index.html">Phone app</a><button type="button" class="dbtn sm" data-act="signOut">' + icon('logout', 16) + 'Sign out</button></div></div></header>' +
       '<main class="wrap' + (narrow ? ' narrow' : '') + '">' + (ui.err ? '<div class="msg" role="alert">' + esc(ui.err) + '</div>' : '') + (ui.msg ? '<div class="msg ok" role="status">' + esc(ui.msg) + '</div>' : '') + body + '<p class="build noprint">Build ' + T.BUILD + '</p></main>';
   }
   function loginScreen() {
-    var noApi = !T.cfg.api;
-    return '<main class="wrap"><form class="login panel" data-form="login"><div class="brand"><small>FREEZIGO</small><b>Test Log</b></div><h2>Sign in</h2>' +
-      (noApi ? '<div class="msg">The app is not connected to the Google Sheet yet.</div>' : '') +
-      '<label class="col" style="gap:4px;font-weight:700">Username<input class="din" id="l-user" autocapitalize="none" autocomplete="username" value="' + esc(S().lastUser || '') + '"></label>' +
+    return '<main class="wrap"><form class="login panel" data-form="login"><div class="brand"><small>FREEZIGO</small><b>Test Log</b></div><h2>Sign in with your ERP login</h2>' +
+      (ui.erpEmail ? '<button type="button" class="dbtn primary" style="justify-content:center" data-act="erpWalkIn"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Continue as ' + esc(ui.erpEmail) + '</button><p class="muted" style="text-align:center;margin:0">or</p>' : '') +
+      '<label class="col" style="gap:4px;font-weight:700">Email<input class="din" id="l-user" type="email" autocapitalize="none" autocomplete="username" value="' + esc((S().users[S().lastUser] || {}).email || '') + '"></label>' +
       '<label class="col" style="gap:4px;font-weight:700">Password<input class="din" id="l-pass" type="password" autocomplete="current-password"></label>' +
       (ui.err ? '<div class="msg" role="alert">' + esc(ui.err) + '</div>' : '') +
-      '<button type="submit" class="dbtn primary" style="justify-content:center"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Sign in</button><p class="build">Build ' + T.BUILD + '</p></form></main>';
+      '<button type="submit" class="dbtn' + (ui.erpEmail ? '' : ' primary') + '" style="justify-content:center"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Sign in</button>' +
+      '<a class="dbtn" style="justify-content:center" href="' + esc(T.cfg.erpUrl || '../') + '">Back to the ERP</a><p class="build">Build ' + T.BUILD + '</p></form></main>';
   }
 
   /* ---------- tests list ---------- */
@@ -382,13 +382,13 @@
   function peopleScreen() {
     if (!D.meta) return shell('<h1>People</h1><div class="panel">' + spin() + ' Loading…</div>', 'people', true);
     var can = reviewer(), active = D.people.filter(function (p) { return p.active; }), removed = D.people.filter(function (p) { return !p.active; });
-    var h = '<div class="col" style="gap:4px"><h1>People <span class="num">' + active.length + '</span></h1><p class="muted">These people can sign in on the phone and on the computer. Each person has a username and a password that you give.</p></div>';
+    var h = '<div class="col" style="gap:4px"><h1>People <span class="num">' + active.length + '</span></h1><p class="muted">These people can sign in on the phone and on the computer with their Freezigo ERP login (email and password). The password is the ERP one and is changed in the ERP.</p></div>';
     if (!can) h += '<div class="msg">Only a reviewer can add or remove people.</div>';
-    if (can) h += '<section class="panel"><h2 style="font-size:16px">Add a person</h2><div class="filters"><label>Name<input class="din" id="p-name" placeholder="Example: Krupal"></label><label>Username<input class="din" id="p-user" placeholder="Example: krupal" autocapitalize="none"></label><label>Password (6 or more letters)<input class="din" id="p-pass" placeholder="Example: Cool#2026"></label><label>Role<select class="din" id="p-role"><option value="technician">Technician · records tests</option><option value="engineer">Engineer · records tests, adds and changes templates</option><option value="reviewer">Reviewer · everything, also people and reviewer notes</option></select></label></div><div class="row"><button type="button" class="dbtn primary" data-act="personAdd"' + (ui.busy ? ' disabled' : '') + '>' + icon('plus', 18) + 'Add person</button><span class="muted" style="font-size:13px">New names show on every phone after its next sync. Tell the person their username and password.</span></div></section>';
-    h += '<div class="tablewrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th class="r">Tests started</th><th>Last active</th><th>Added on</th><th></th></tr></thead><tbody>' + active.map(function (p) {
-      var row = '<tr><td><span class="row"><span class="avatar sm">' + esc(U.initials(p.name)) + '</span><strong>' + esc(p.name) + '</strong></span></td><td class="num">' + esc(p.username) + '</td><td>' + (can && p.username !== S().current ? '<select class="din" style="height:36px" data-role="' + esc(p.username) + '" aria-label="Role of ' + esc(p.name) + '">' + ['technician', 'engineer', 'reviewer'].map(function (x) { return '<option value="' + x + '"' + ((p.role === x || (x === 'technician' && !/^(reviewer|engineer)$/.test(p.role))) ? ' selected' : '') + '>' + T.roleName(x) + '</option>'; }).join('') + '</select>' : T.roleName(p.role)) + '</td><td class="r num" style="font-weight:700">' + p.tests + '</td><td class="num">' + (p.last_active ? esc(U.dmyhm(p.last_active)) : '<span class="muted">Never</span>') + '</td><td class="num muted">' + esc(U.dmy(p.added_at)) + '</td><td style="text-align:right;white-space:nowrap">' + (can ? '<button type="button" class="dbtn sm" data-act="passOpen" data-u="' + esc(p.username) + '">New password</button> ' + (p.username === S().current ? '' : '<button type="button" class="dbtn sm" data-act="removeAsk" data-u="' + esc(p.username) + '">' + icon('trash', 14) + 'Remove</button>') : '') + '</td></tr>';
+    if (can) h += '<section class="panel"><h2 style="font-size:16px">Add a person</h2><div class="filters"><label>Name<input class="din" id="p-name" placeholder="Example: Krupal"></label><label>ERP login email<input class="din" id="p-email" type="email" placeholder="Example: krupal@staff.freezigo.in" autocapitalize="none"></label><label>Role<select class="din" id="p-role"><option value="technician">Technician · records tests</option><option value="engineer">Engineer · records tests, adds and changes templates</option><option value="reviewer">Reviewer · everything, also people and reviewer notes</option></select></label></div><div class="row"><button type="button" class="dbtn primary" data-act="personAdd"' + (ui.busy ? ' disabled' : '') + '>' + icon('plus', 18) + 'Add person</button><span class="muted" style="font-size:13px">The person signs in with this ERP login. New names show on every phone after its next sync.</span></div></section>';
+    h += '<div class="tablewrap"><table><thead><tr><th>Name</th><th>ERP login email</th><th>Role</th><th class="r">Tests started</th><th>Last active</th><th>Added on</th><th></th></tr></thead><tbody>' + active.map(function (p) {
+      var row = '<tr><td><span class="row"><span class="avatar sm">' + esc(U.initials(p.name)) + '</span><strong>' + esc(p.name) + '</strong></span></td><td class="num">' + (p.email ? esc(p.email) : '<span class="muted">not linked</span>') + '</td><td>' + (can && p.username !== S().current ? '<select class="din" style="height:36px" data-role="' + esc(p.username) + '" aria-label="Role of ' + esc(p.name) + '">' + ['technician', 'engineer', 'reviewer'].map(function (x) { return '<option value="' + x + '"' + ((p.role === x || (x === 'technician' && !/^(reviewer|engineer)$/.test(p.role))) ? ' selected' : '') + '>' + T.roleName(x) + '</option>'; }).join('') + '</select>' : T.roleName(p.role)) + '</td><td class="r num" style="font-weight:700">' + p.tests + '</td><td class="num">' + (p.last_active ? esc(U.dmyhm(p.last_active)) : '<span class="muted">Never</span>') + '</td><td class="num muted">' + esc(U.dmy(p.added_at)) + '</td><td style="text-align:right;white-space:nowrap">' + (can ? '<button type="button" class="dbtn sm" data-act="passOpen" data-u="' + esc(p.username) + '">Change email</button> ' + (p.username === S().current ? '' : '<button type="button" class="dbtn sm" data-act="removeAsk" data-u="' + esc(p.username) + '">' + icon('trash', 14) + 'Remove</button>') : '') + '</td></tr>';
       if (ui.confirm === p.username) row += '<tr><td colspan="7"><div class="between msg" role="alertdialog"><span><strong>Remove ' + esc(p.name) + '?</strong> ' + esc(p.name) + ' can no longer sign in. Old tests and notes stay.</span><span class="row"><button type="button" class="dbtn sm" data-act="removeCancel">Cancel</button><button type="button" class="dbtn sm bad" data-act="personRemove" data-u="' + esc(p.username) + '">Yes, remove</button></span></div></td></tr>';
-      if (ui.newPass[p.username] !== undefined) row += '<tr><td colspan="7"><div class="row"><label class="row" style="font-weight:700">New password for ' + esc(p.name) + '<input class="din" id="np-' + esc(p.username) + '" placeholder="6 or more letters"></label><button type="button" class="dbtn sm primary" data-act="passSave" data-u="' + esc(p.username) + '">Save password</button><button type="button" class="dbtn sm" data-act="passCancel" data-u="' + esc(p.username) + '">Cancel</button><span class="muted" style="font-size:13px">' + esc(p.name) + ' must sign in again on every phone.</span></div></td></tr>';
+      if (ui.newPass[p.username] !== undefined) row += '<tr><td colspan="7"><div class="row"><label class="row" style="font-weight:700">ERP login email of ' + esc(p.name) + '<input class="din" id="np-' + esc(p.username) + '" type="email" value="' + esc(p.email || '') + '"></label><button type="button" class="dbtn sm primary" data-act="passSave" data-u="' + esc(p.username) + '">Save email</button><button type="button" class="dbtn sm" data-act="passCancel" data-u="' + esc(p.username) + '">Cancel</button><span class="muted" style="font-size:13px">' + esc(p.name) + ' signs in again with the new ERP login.</span></div></td></tr>';
       return row;
     }).join('') + '</tbody></table></div>';
     h += '<section class="col" style="gap:10px"><div><h2>Phones <span class="num muted" style="font-size:16px">' + D.phones.length + '</span></h2><p class="muted">Each phone has a code. The code is part of every Test ID made on that phone. Example: <strong class="num" style="color:var(--ink)">T-261011-A3-02</strong> is the 2nd test made on phone <strong class="num" style="color:var(--ink)">A3</strong> on 11 Oct 2026.</p></div><div class="tablewrap"><table><thead><tr><th>Phone code</th><th>Last used by</th><th>Last used</th><th class="r">Tests made</th></tr></thead><tbody>' + (D.phones.map(function (p) { return '<tr><td><span class="num" style="display:inline-grid;place-items:center;min-width:44px;height:30px;padding:0 8px;border-radius:8px;background:var(--ink);color:var(--surface);font-weight:700">' + esc(p.code) + '</span></td><td><strong>' + esc(name(p.last_user)) + '</strong></td><td class="num">' + esc(U.dmyhm(p.last_used)) + '</td><td class="r num" style="font-weight:700">' + p.tests_made + '</td></tr>'; }).join('') || '<tr><td colspan="4" class="muted">No phone has signed in yet.</td></tr>') + '</tbody></table></div></section>';
@@ -689,12 +689,15 @@
     },
     tplRemove: function () { if (!window.confirm('Remove this template? Old tests keep their own columns.')) return; push('template.remove', { id: ui.tpl.id }).then(function () { ui.msg = 'Template removed.'; ui.tpl = null; return reload(); }).catch(function () {}); },
     personAdd: function () {
-      var g = function (id) { return document.getElementById(id).value.trim(); }, person = { name: g('p-name'), username: g('p-user').toLowerCase(), password: document.getElementById('p-pass').value, role: g('p-role') };
-      if (!person.name || !person.username) { ui.err = 'Give a name and a username.'; return render(); }
-      if (!/^[a-z0-9._-]+$/.test(person.username)) { ui.err = 'Username: use small letters and numbers only, with no spaces. Example: krupal'; return render(); }
-      if (D.people.some(function (p) { return p.username === person.username; })) { ui.err = 'This username is already used.'; return render(); }
-      if (person.password.length < 6) { ui.err = 'Password must have 6 or more letters.'; return render(); }
+      var g = function (id) { return document.getElementById(id).value.trim(); }, person = { name: g('p-name'), email: g('p-email').toLowerCase(), role: g('p-role') };
+      if (!person.name || !person.email) { ui.err = 'Give a name and the ERP login email.'; return render(); }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(person.email)) { ui.err = 'This email is not valid. Example: krupal@staff.freezigo.in'; return render(); }
+      if (D.people.some(function (p) { return (p.email || '').toLowerCase() === person.email; })) { ui.err = 'This email is already linked to someone.'; return render(); }
       push('person.save', { person: person }).then(function () { ui.msg = person.name + ' was added.'; return reload(); }).catch(function () {});
+    },
+    erpWalkIn: function () {
+      ui.busy = true; ui.err = ''; render();
+      T.signInWithErp().then(function (acct) { ui.busy = false; if (!acct) ui.erpEmail = ''; load(); }, function (e) { ui.busy = false; ui.erpEmail = ''; ui.err = e.message; render(); });
     },
     removeAsk: function (el) { ui.confirm = el.dataset.u; render(); },
     removeCancel: function () { ui.confirm = ''; render(); },
@@ -702,7 +705,7 @@
     personRestore: function (el) { push('person.restore', { username: el.dataset.u }).then(function () { ui.msg = 'Person added back.'; return reload(); }).catch(function () {}); },
     passOpen: function (el) { ui.newPass[el.dataset.u] = ''; render(); },
     passCancel: function (el) { delete ui.newPass[el.dataset.u]; render(); },
-    passSave: function (el) { var u = el.dataset.u, v = document.getElementById('np-' + u).value; if (v.length < 6) { ui.err = 'Password must have 6 or more letters.'; return render(); } push('person.save', { person: { username: u, password: v } }).then(function () { delete ui.newPass[u]; ui.msg = 'Password changed for ' + name(u) + '.'; if (u === S().current) { T.signOut(); } return reload(); }).catch(function () {}); }
+    passSave: function (el) { var u = el.dataset.u, v = document.getElementById('np-' + u).value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { ui.err = 'This email is not valid.'; return render(); } push('person.save', { person: { username: u, email: v } }).then(function () { delete ui.newPass[u]; ui.msg = 'ERP login email changed for ' + name(u) + '. They sign in again.'; if (u === S().current) { T.signOut(); } return reload(); }).catch(function () {}); }
   };
   root.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]');
@@ -761,5 +764,10 @@
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && (ui.viewer || ui.pop)) { ui.viewer = null; ui.pop = null; render(); } });
   window.addEventListener('hashchange', load);
   T.on(function (what) { if (what === 'expired' || what === 'signout') render(); });
-  T.load().then(load);
+  // Build 15: opened from the ERP menu, walk in with the ERP login already on this browser.
+  T.load().then(function () {
+    if (T.me()) return load();
+    load();
+    return T.erpSession().then(function (se) { if (!se) return; ui.erpEmail = se.email; actions.erpWalkIn(); });
+  });
 })();

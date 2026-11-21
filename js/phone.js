@@ -45,28 +45,28 @@
   function typeName(c) { return { number: 'Number', text: 'Text', yesno: 'Yes/No', pick: 'Pick-list' }[c.type] || c.type; }
   function colMeta(c) { var m = typeName(c); if (c.unit) m += ' · ' + c.unit; if (c.type === 'pick' && c.options && c.options.length) m += ' · ' + c.options.join(', '); return m; }
 
-  /* ---------- sign in ---------- */
+  /* ---------- sign in (build 15: the ERP login) ---------- */
+  // People known on this phone (signed in here before, or in the list from the last sync) are tapped, then their ERP
+  // password. Anyone else types their ERP email and password. Opened from the ERP menu, the ERP login walks straight in.
+  function emailOf(username) {
+    var a = S().users[username], p = S().people.find(function (x) { return x.username === username; });
+    return (a && a.email) || (p && p.email) || '';
+  }
   function signinScreen() {
-    var st = S(), list = people(), last = list.find(function (p) { return p.username === st.lastUser; });
-    var body;
-    if (!T.cfg.api) {
-      body = '<div class="banner bad">' + icon('warn') + '<span><b>App is not connected</b><br>The link to the Google Sheet is missing. Ask your manager.</span></div>';
-    } else if (ui.serverUsers === false) {
-      body = '<div><h1 style="font-size:28px;font-weight:800;line-height:1.1">First-time setup</h1></div>' +
-        field('Your name', '<input class="inp" id="su-name" autocomplete="name">') +
-        field('Username', '<input class="inp" id="su-user" autocapitalize="none" autocomplete="username">') +
-        field('Password (6 or more letters)', '<input class="inp" id="su-pass" type="password" autocomplete="new-password">') +
-        (ui.err ? '<p class="err">' + esc(ui.err) + '</p>' : '') +
-        '<button type="button" class="btn" data-act="setupAdmin"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Create user and sign in</button>';
-    } else {
-      body = '<div><h1 style="font-size:30px;font-weight:800;line-height:1.1">Who are you?</h1></div>';
-      if (last) body += '<section class="col" style="gap:8px"><h2 class="h-caps">Last used on this phone</h2><button type="button" class="person last" data-act="pickUser" data-u="' + esc(last.username) + '">' + avatar(last.name) + '<span class="grow">' + esc(last.name) + '</span>' + icon('chevron', 26) + '</button></section>';
-      var others = list.filter(function (p) { return !last || p.username !== last.username; });
-      if (others.length) body += '<section class="col" style="gap:8px"><h2 class="h-caps">All names</h2><div class="grid2">' + others.map(function (p) {
-        return '<button type="button" class="person" data-act="pickUser" data-u="' + esc(p.username) + '">' + avatar(p.name) + '<span>' + esc(p.name) + '</span></button>';
-      }).join('') + '</div></section>';
-      if (!list.length) body += '<div class="empty">' + (navigator.onLine ? spin() + '<b>Loading names…</b>' : icon('cloudOff', 32) + '<b>No internet</b>') + '</div>';
-    }
+    var st = S(), list = people().filter(function (p) { return p.email; }), last = list.find(function (p) { return p.username === st.lastUser; });
+    var body = '<div><h1 style="font-size:30px;font-weight:800;line-height:1.1">Who are you?</h1><p class="muted" style="margin-top:6px">Sign in with your Freezigo ERP login.</p></div>';
+    if (ui.erpEmail) body += '<button type="button" class="btn" data-act="erpWalkIn"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : icon('person')) + 'Continue as ' + esc(ui.erpEmail) + '</button>';
+    if (last) body += '<section class="col" style="gap:8px"><h2 class="h-caps">Last used on this phone</h2><button type="button" class="person last" data-act="pickUser" data-u="' + esc(last.username) + '">' + avatar(last.name) + '<span class="grow">' + esc(last.name) + '</span>' + icon('chevron', 26) + '</button></section>';
+    var others = list.filter(function (p) { return !last || p.username !== last.username; });
+    if (others.length) body += '<section class="col" style="gap:8px"><h2 class="h-caps">All names</h2><div class="grid2">' + others.map(function (p) {
+      return '<button type="button" class="person" data-act="pickUser" data-u="' + esc(p.username) + '">' + avatar(p.name) + '<span>' + esc(p.name) + '</span></button>';
+    }).join('') + '</div></section>';
+    body += '<form class="col" style="gap:10px" data-form="signin-email"><h2 class="h-caps">' + (list.length ? 'Someone else' : 'Your ERP login') + '</h2>' +
+      field('Email', '<input class="inp" id="em" type="email" autocapitalize="none" autocomplete="username" placeholder="Example: divyal.patel@freezigo.in" value="' + esc(ui.em || '') + '">') +
+      field('Password', '<input class="inp" id="em-pw" type="password" autocomplete="current-password">') +
+      (ui.err && !ui.sheet ? '<p class="err">' + esc(ui.err) + '</p>' : '') +
+      '<button type="submit" class="btn second"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Sign in</button></form>';
+    body += '<a class="btn second" href="' + esc(T.cfg.erpUrl || '../') + '">' + icon('back') + 'Back to the ERP</a>';
     return '<header class="hdr"><div class="between">' + brand() + '</div></header><main class="scroll" style="padding-top:22px;gap:20px">' + body +
       '<p class="build">Build ' + T.BUILD + (st.phone ? ' · Phone ' + esc(st.phone) : '') + '</p></main>' + (ui.sheet && ui.sheet.name === 'password' ? passwordSheet() : '');
   }
@@ -78,8 +78,8 @@
     var acct = S().users[ui.sheet.username], left = T.daysLeftOffline(acct);
     var hint = navigator.onLine ? '' : (left > 0 ? 'No internet. You can sign in offline for ' + Math.ceil(left) + ' more day' + (Math.ceil(left) === 1 ? '' : 's') + '.' : 'No internet. This phone needs internet for your sign in.');
     return '<div class="scrim" data-act="closeSheet"><form class="sheet" data-form="signin"><span class="grab"></span>' +
-      '<div class="row">' + avatar(p.name) + '<h2>' + esc(p.name) + '</h2></div>' +
-      field('Password', '<input class="inp" id="pw" type="password" autocomplete="current-password" autofocus>') +
+      '<div class="row">' + avatar(p.name) + '<h2>' + esc(p.name) + '</h2></div>' + '<p class="muted" style="margin:0">' + esc(emailOf(ui.sheet.username)) + '</p>' +
+      field('ERP password', '<input class="inp" id="pw" type="password" autocomplete="current-password" autofocus>') +
       (hint ? '<p class="tip">' + icon('cloudOff') + '<span>' + hint + '</span></p>' : '') +
       (ui.err ? '<p class="err">' + esc(ui.err) + '</p>' : '') +
       '<button type="submit" class="btn"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? spin() : '') + 'Sign in</button>' +
@@ -530,7 +530,7 @@
   function alarmPanel() {
     var a = T.alarm.info, url = new URL('testlog-alarm.apk', location.href).href;
     var link = function (label) { return '<a class="btn second" href="testlog-alarm.apk" download>' + icon('download') + label + '</a>'; };
-    if (!a.present) return '<div class="banner warn">' + icon('timer') + '<span><b>Alarm app is not on this phone</b></span></div>' + link('Download alarm app');
+    if (!a.present) return '<div class="banner warn">' + icon('timer') + '<span><b>No alarm here</b><br>The alarm rings only in the Test Log alarm app. Install it once, then open Test Log from its icon: same login, same tests.</span></div>' + link('Download alarm app');
     var p = a.perms || {}, rows = [['notifications', 'Show notifications'], ['exactAlarm', 'Ring at the exact time'], ['fullScreen', 'Show over the lock screen'], ['batteryExempt', 'Run when the phone saves battery']];
     var missing = rows.filter(function (r) { return p[r[0]] === false; }), old = a.shellBuild < T.alarm.LATEST_SHELL;
     var h = '<div class="between"><span class="row" style="font-weight:700">' + icon(old ? 'warn' : 'check', 20) + 'Alarm app</span><span class="chip' + (old ? ' mark' : '') + '">shell build ' + a.shellBuild + (old ? ' · new: ' + T.alarm.LATEST_SHELL : '') + '</span></div>';
@@ -548,6 +548,7 @@
     h += box('Alarm', alarmPanel());
     h += box('Display', '<div class="between" style="min-height:48px"><span style="font-size:17px;font-weight:700">Dark theme</span>' + switchBtn(st.theme === 'dark', 'theme', '', 'Dark theme') + '</div>');
     h += box('Computer', '<a class="btn second" href="desk.html">Open computer view' + icon('chevron') + '</a>');
+    h += box('Freezigo ERP', '<a class="btn second" href="' + esc(T.cfg.erpUrl || '../') + '">' + icon('back') + 'Back to the ERP</a>');
     var line = function (k, v) { return '<div class="between" style="min-height:40px"><span style="font-size:17px">' + k + '</span><strong class="num" style="font-size:18px">' + v + '</strong></div>'; };
     h += box('Build numbers', line('App build', T.BUILD) + line('Alarm app build', T.alarm.info.present ? T.alarm.info.shellBuild : 'Not installed') + line('Phone code', esc(st.phone || '?')) + (T.update.state.server ? line('Newest app build', T.update.state.server) : '') + '<button type="button" class="btn second" data-act="checkUpdate"' + (ui.updBusy ? ' disabled' : '') + '>' + (ui.updBusy ? spin() : icon('retry')) + 'Check for update</button>');
     return h + '</main>';
@@ -678,11 +679,9 @@
     changeUser: function () { T.signOut(); go(''); },
     toggleFinished: function () { ui.allFinished = !ui.allFinished; render(); },
     pickUser: function (el) { ui.err = ''; ui.sheet = { name: 'password', username: el.dataset.u }; render(); },
-    setupAdmin: function () {
-      var name = document.getElementById('su-name').value.trim(), user = document.getElementById('su-user').value.trim(), pass = document.getElementById('su-pass').value;
-      if (!user || pass.length < 6) { ui.err = 'Give a username and a password of 6 or more letters.'; return render(); }
+    erpWalkIn: function () {
       ui.busy = true; ui.err = ''; render();
-      T.signIn(user, pass, { setup: true, name: name || user }).then(function () { ui.busy = false; ui.serverUsers = true; go(''); }, function (e) { ui.busy = false; ui.err = e.message; render(); });
+      T.signInWithErp().then(function (acct) { ui.busy = false; if (!acct) { ui.erpEmail = ''; } go(''); }, function (e) { ui.busy = false; ui.erpEmail = ''; ui.err = e.message; render(); });
     },
     open: function (el) { go('t/' + encodeURIComponent(el.dataset.id)); },
     startNew: function () {
@@ -992,11 +991,13 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
   root.addEventListener('keydown', function (ev) { var el = ev.target; if (ev.key === 'Enter' && el.matches && el.matches('input[data-in=val]')) { ev.preventDefault(); nextBox(el); } });
   root.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    if (ev.target.dataset.form !== 'signin') return;
-    var pw = document.getElementById('pw').value, user = ui.sheet.username;
-    if (!pw) return;
+    var f = ev.target.dataset.form, email, pw;
+    if (f === 'signin') { pw = document.getElementById('pw').value; email = emailOf(ui.sheet.username); }
+    else if (f === 'signin-email') { pw = document.getElementById('em-pw').value; email = ui.em = document.getElementById('em').value.trim(); }
+    else return;
+    if (!pw || !email) { ui.err = 'Type the email and the password of your ERP login.'; return render(); }
     ui.busy = true; ui.err = ''; render();
-    T.signIn(user, pw).then(function () { ui.busy = false; ui.sheet = null; go(''); }, function (e) { ui.busy = false; ui.err = e.message; render(); });
+    T.signIn(email, pw).then(function () { ui.busy = false; ui.sheet = null; go(''); }, function (e) { ui.busy = false; ui.err = e.message; render(); });
   });
   root.addEventListener('input', function (ev) {
     var el = ev.target, k = el.dataset.in, st = S();
@@ -1097,9 +1098,13 @@ draftAlarm: function () { var d = S().newTest; d.setup.alarm = d.setup.alarm ===
     setInterval(tick, 1000);
     setInterval(function () { T.sync(); }, 60000);
     if (S().current) T.sync();
-    if (T.cfg.api && navigator.onLine) {
-      T.api('status', {}, 20000).then(function (r) { ui.serverUsers = r.hasUsers; if (!r.hasUsers) render(); else return T.fetchNames().then(function () { if (!S().current) render(); }); }).catch(function () {});
-    }
+    // Build 15: opened from the ERP menu with nobody signed in here: walk in with the ERP login (else offer it as a button).
+    if (!S().current) T.erpSession().then(function (se) {
+      if (!se) return;
+      ui.erpEmail = se.email; render();
+      var known = T.accountByEmail(se.email);
+      if (!S().lastUser || (known && known.username === S().lastUser)) actions.erpWalkIn();
+    });
   });
   T.update.init();
 })();

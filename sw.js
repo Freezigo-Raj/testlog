@@ -1,6 +1,6 @@
 /* Keeps the app working without internet. Change BUILD when the app files change. */
-var BUILD = 14, CACHE = 'testlog-b' + BUILD;
-var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/alarm.js', 'js/torch.js', 'js/phone.js', 'js/desk.js', 'js/import.js', 'vendor/exceljs.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+var BUILD = 16, CACHE = 'testlog-b' + BUILD;
+var SHELL = ['./', 'index.html', 'desk.html', 'config.js', 'css/app.css', 'js/core.js', 'js/alarm.js', 'js/torch.js', 'js/phone.js', 'js/desk.js', 'js/import.js', 'vendor/exceljs.min.js', 'vendor/supabase.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 // A NEW BUILD IS DOWNLOADED WHOLE, AND FRESH (build 6).
 // The web host tells the phone it may reuse a file for 10 minutes. Build 5 and older filled the new
@@ -23,7 +23,7 @@ self.addEventListener('activate', function (e) {
 });
 self.addEventListener('fetch', function (e) {
   var req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET') return;                       // data calls to the Google Sheet are never cached
+  if (req.method !== 'GET') return;                       // data calls to the server are never cached
   var fonts = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   if (url.origin !== location.origin && !fonts) return;
   // The app asks "which build is on the server?" with no-store. That question must reach the server.

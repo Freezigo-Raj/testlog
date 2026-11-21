@@ -1,7 +1,8 @@
-/* Freezigo Test Log - shared core: storage, sign in, saved changes, sync. */
+/* Freezigo Test Log - shared core: storage, sign in, saved changes, sync.
+   Build 15 (ERP web w117), 16 (w120: same app also on the old address, which the alarm app opens): inside the Freezigo ERP (Data Log > Tests). Data in the ERP database, sign-in with the ERP login. */
 (function () {
   'use strict';
-  var BUILD = 14;
+  var BUILD = 16;
   var OFFLINE_DAYS = 7;
   var cfg = window.TESTLOG_CONFIG || {};
 
@@ -139,15 +140,48 @@
 
   /* ---------- server calls ---------- */
   function api(action, body, timeoutMs) {
-    if (!cfg.api) return Promise.reject(Object.assign(new Error('The app is not connected to the Google Sheet yet.'), { code: 500 }));
+    if (!cfg.api) return Promise.reject(Object.assign(new Error('The app is not connected to the server.'), { code: 500 }));
     var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, timeoutMs || 60000);
-    return fetch(cfg.api, { method: 'POST', body: JSON.stringify(Object.assign({ action: action }, body || {})), signal: ctl.signal, redirect: 'follow' })
+    return fetch(cfg.api, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: cfg.supabaseKey || '' },
+      body: JSON.stringify(Object.assign({ action: action }, body || {})), signal: ctl.signal })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j.ok) throw Object.assign(new Error(j.error || 'Something went wrong.'), { code: j.code || 500 });
         return j;
       }, function (e) { throw Object.assign(new Error('No connection to the server.'), { network: true }); })
       .finally(function () { clearTimeout(timer); });
+  }
+
+  /* ---------- the ERP login (build 15) ---------- */
+  // erp(): the ERP app's own client (same site, same saved login), so a person already in the ERP walks straight in.
+  // A password typed here signs in on a separate client that saves nothing, so a second person on a shared phone
+  // never changes the ERP login of the first.
+  var erpClient = null;
+  function erp() {
+    if (!erpClient && window.supabase && cfg.supabaseUrl) erpClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+    return erpClient;
+  }
+  function erpTokenWithPassword(email, password) {
+    if (!window.supabase) return Promise.reject(new Error('The sign-in script did not load. Check the internet and open again.'));
+    var c = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'testlog-once' } });
+    return c.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
+      if (r.error) {
+        if (/fetch|network/i.test(r.error.message || '')) throw Object.assign(new Error('No connection to the server.'), { network: true });
+        throw Object.assign(new Error(r.error.message === 'Invalid login credentials' ? 'Wrong email or password (your ERP login).' : r.error.message), { code: 401 });
+      }
+      var tok = r.data.session.access_token;
+      c.auth.signOut({ scope: 'local' }).catch(function () {});
+      return tok;
+    }, function () { throw Object.assign(new Error('No connection to the server.'), { network: true }); });
+  }
+  /** The ERP login already on this browser, if any: { email, token }. */
+  function erpSession() {
+    var c = erp();
+    if (!c || !navigator.onLine) return Promise.resolve(null);
+    return c.auth.getSession().then(function (r) {
+      var se = r && r.data && r.data.session;
+      return se ? { email: String(se.user.email || '').toLowerCase(), token: se.access_token } : null;
+    }, function () { return null; });
   }
 
   /* ---------- sign in (online, or offline for 7 days) ---------- */
@@ -162,29 +196,45 @@
     if (!acct || !acct.lastOnline) return 0;
     return OFFLINE_DAYS - (Date.now() - new Date(acct.lastOnline).getTime()) / 864e5;
   }
-  function signIn(username, password, opts) {
-    username = String(username || '').trim().toLowerCase();
-    var action = opts && opts.setup ? 'setupAdmin' : 'login';
-    var online = api(action, { username: username, password: password, name: opts && opts.name, phone: state.phone });
-    return online.then(function (r) {
-      var salt = uid();
-      return verifier(password, salt).then(function (v) {
-        state.users[username] = { username: username, name: r.user.name, role: r.user.role, token: r.token, salt: salt, verifier: v, lastOnline: new Date().toISOString() };
-        state.current = username; state.lastUser = username;
-        save();
-        return ensurePhone().then(function () { emit('signin'); sync(); return state.users[username]; });
-      });
-    }, function (e) {
+  function remember(r, password) {
+    var username = r.user.username, salt = uid();
+    var done = function (v) {
+      var acct = Object.assign(state.users[username] || {}, { username: username, name: r.user.name, role: r.user.role, email: r.user.email, token: r.token, lastOnline: new Date().toISOString() });
+      if (v) { acct.salt = salt; acct.verifier = v; }
+      state.users[username] = acct;
+      state.current = username; state.lastUser = username;
+      save();
+      return ensurePhone().then(function () { emit('signin'); sync(); return acct; });
+    };
+    return password ? verifier(password, salt).then(done) : done(null);
+  }
+  function accountByEmail(email) {
+    email = String(email || '').trim().toLowerCase();
+    return Object.keys(state.users).map(function (k) { return state.users[k]; }).find(function (a) { return String(a.email || '').toLowerCase() === email; }) || null;
+  }
+  /** Sign in with the ERP email and password. Offline: the same password works on this phone for 7 days after the last sign-in with internet. */
+  function signIn(email, password) {
+    email = String(email || '').trim().toLowerCase();
+    return erpTokenWithPassword(email, password).then(function (tok) {
+      return api('login', { erp_token: tok, phone: state.phone });
+    }).then(function (r) { return remember(r, password); }, function (e) {
       if (!e.network) throw e;
-      var acct = state.users[username];
+      var acct = accountByEmail(email);
       if (!acct || !acct.verifier) throw new Error('No internet. Sign in once with internet on this phone first.');
       if (daysLeftOffline(acct) <= 0) throw new Error('No internet for more than 7 days. Connect to the internet and sign in again.');
       return verifier(password, acct.salt).then(function (v) {
         if (v !== acct.verifier) throw new Error('Wrong password.');
-        state.current = username; state.lastUser = username;
+        state.current = acct.username; state.lastUser = acct.username;
         save(); emit('signin');
         return acct;
       });
+    });
+  }
+  /** Walk in with the ERP login already on this browser (opened from the ERP menu). Resolves null when there is none. */
+  function signInWithErp(onlyEmail) {
+    return erpSession().then(function (se) {
+      if (!se || (onlyEmail && se.email !== String(onlyEmail).toLowerCase())) return null;
+      return api('login', { erp_token: se.token, phone: state.phone }).then(function (r) { return remember(r, null); });
     });
   }
   function signOut() { state.current = ''; save(); emit('signout'); }
@@ -192,12 +242,7 @@
     if (state.phone || !cfg.phoneCodes) return Promise.resolve();
     return api('registerPhone', { token: me().token }).then(function (r) { state.phone = r.code; save(); });
   }
-  function fetchNames() {
-    return api('names', {}, 20000).then(function (r) {
-      state.people = r.names.map(function (n) { return Object.assign({ active: true }, state.people.find(function (p) { return p.username === n.username; }) || {}, n); });
-      save();
-    });
-  }
+  function fetchNames() { return Promise.resolve(); }   // build 15: names come with each sync (no list for people not signed in)
 
   /* ---------- test helpers ---------- */
   function newTestId() {
@@ -568,7 +613,7 @@
     update: { state: upd, init: initUpdates, check: checkUpdate, apply: applyUpdate },
     BUILD: BUILD, cfg: cfg, get state() { return state; }, live: live,
     on: function (f) { listeners.push(f); }, emit: emit, load: load, save: save, me: me, personName: personName,
-    api: api, signIn: signIn, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
+    api: api, signIn: signIn, signInWithErp: signInWithErp, erpSession: erpSession, accountByEmail: accountByEmail, signOut: signOut, fetchNames: fetchNames, daysLeftOffline: daysLeftOffline,
     act: act, sync: sync, scheduleSync: scheduleSync, pushNow: pushNow, syncState: syncState, waitingCount: waitingCount, pendingReadingIds: pendingReadingIds,
     coverage: coverage, coverageName: coverageName, newTestId: newTestId, activeColumns: activeColumns, readingColumns: readingColumns, setupFields: setupFields, sortedReadings: sortedReadings, usedReadings: usedReadings, nextNo: nextNo,
     compressor: compressor, energy: energy, nextDue: nextDue, iAmRecorder: iAmRecorder, testTitle: testTitle, startOf: startOf, roleName: roleName, isDeleted: isDeleted, predict: predict, decimalsOf: decimalsOf, LIMIT: LIMIT,

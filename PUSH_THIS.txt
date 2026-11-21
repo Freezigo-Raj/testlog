@@ -1,0 +1,6 @@
+Test Log build 16 for the OLD address (freezigo-raj.github.io/testlog). The alarm app opens this address, so the alarm works again.
+1. In D:\AI data\testing results app\testlog: copy every file and folder from this zip over the old ones (say Yes to replace).
+   Do NOT use the 3 redirect files sent earlier (index.html, desk.html, sw.js that forward to freezigo.github.io).
+2. Push to GitHub as before.
+3. On each phone: open the alarm app. It updates by itself to Build 16, then asks for your ERP email and password once.
+Old folders backend\ and the Google Sheet are no longer used. You can leave them.
